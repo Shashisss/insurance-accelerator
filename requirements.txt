@@ -1,9 +1,6 @@
-streamlit>=1.32
+# Runtime dependencies for the Streamlit app (what Community Cloud installs).
+# Keep this minimal: Streamlit Cloud already provides its own server stack
+# (uvicorn/fastapi), and pinning different versions there breaks static assets.
+streamlit>=1.40
 pandas>=2.0
 PyYAML>=6.0
-fastapi>=0.110        # API layer (optional for the UI-only deployment)
-uvicorn[standard]>=0.27
-pydantic>=2.6
-neo4j>=5.20           # only needed for the Neo4j backend / loader
-pytest>=8.0
-httpx>=0.27           # required by fastapi TestClient
