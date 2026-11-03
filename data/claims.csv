@@ -1,0 +1,14 @@
+claim_id,property_id,policy_id,loss_date,peril,loss_amount,status,description
+CL001,PR001,P1001,2024-11-18,Theft,18000,Closed,Forced entry to ground floor office
+CL002,PR002,P1002,2022-07-09,Wind,60000,Closed,Roof membrane lifted by storm
+CL003,PR004,P1004,2024-05-22,Water,26000,Closed,Supply pipe failure in kitchen
+CL004,PR004,P1004,2025-02-14,Fire,88000,Closed,Kitchen extraction duct fire
+CL005,PR005,P1005,2024-01-08,Water,180000,Closed,Burst riser flooded two floors
+CL006,PR005,P1005,2025-06-30,Fire,260000,Closed,Electrical fire in stairwell
+CL007,PR005,P1005,2026-03-11,Water,95000,Reserved,Recurring basement water ingress
+CL008,PR006,P1006,2026-04-02,Wind,55000,Open,Loading bay door and cladding damage
+CL009,PR008,P1007,2024-09-19,Fire,420000,Closed,Guest room fire spread to corridor
+CL010,PR009,P1008,2025-01-27,Water,9000,Closed,Chilled water leak in plant room
+CL011,PR010,P1001,2024-02-05,Fire,140000,Closed,Retail unit extractor fire
+CL012,PR011,P1004,2023-12-02,Theft,12000,Closed,Shopfront glazing smashed
+CL013,PR011,P1004,2025-08-16,Water,44000,Closed,Flat roof drainage failure

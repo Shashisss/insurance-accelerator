@@ -1,0 +1,187 @@
+# Insurance Ontology — minimal canonical model for the Commercial Property
+# Underwriting Risk Assessment POC.
+#
+# Deliberately small: six entities, seven relationships, one ruleset.
+# This file is the single source of truth for the canonical model. The graph
+# loader, the source-field mapping and the API all read it from here.
+version: 0.1.0
+domain: commercial-property-underwriting
+
+entities:
+  Customer:
+    key: customer_id
+    definition: Legal party that buys the insurance product.
+    attributes:
+      customer_id: {type: string, required: true, definition: Customer identifier.}
+      name: {type: string, required: true, definition: Legal or trading name.}
+      segment: {type: string, required: false, definition: SME, Mid-Market, Corporate.}
+      region: {type: string, required: false, definition: Primary operating region.}
+
+  Policy:
+    key: policy_id
+    definition: Insurance contract covering one or more scheduled properties.
+    attributes:
+      policy_id: {type: string, required: true, definition: Policy identifier.}
+      customer_id: {type: string, required: true, definition: FK to Customer.}
+      policy_type: {type: string, required: true, definition: Product line, e.g. Commercial Property.}
+      inception_date: {type: date, required: true, definition: Cover start date.}
+      expiry_date: {type: date, required: true, definition: Cover end date.}
+      status: {type: string, required: true, definition: Active, Lapsed, Cancelled.}
+      premium: {type: float, required: false, definition: Annual written premium.}
+      underwriter: {type: string, required: false, definition: Accountable underwriter.}
+
+  Property:
+    key: property_id
+    definition: Insured physical location / building schedule item.
+    attributes:
+      property_id: {type: string, required: true, definition: Schedule item identifier.}
+      policy_id: {type: string, required: true, definition: FK to covering Policy.}
+      address: {type: string, required: true, definition: Street address.}
+      city: {type: string, required: false, definition: City.}
+      state: {type: string, required: false, definition: State / region code.}
+      postcode: {type: string, required: false, definition: Postal code.}
+      construction_type: {type: string, required: true, definition: Frame, Masonry, Steel.}
+      year_built: {type: int, required: true, definition: Year of original construction.}
+      occupancy: {type: string, required: true, definition: Primary use of the building.}
+      gross_floor_area_sqm: {type: float, required: false, definition: Insured floor area.}
+      sum_insured: {type: float, required: true, definition: Declared insured value.}
+      property_value: {type: float, required: false, definition: Assessed reconstruction value.}
+      sprinklered: {type: bool, required: true, definition: Whether a sprinkler system is installed.}
+      flood_zone: {type: string, required: true, definition: Flood zone code (X, B, C, A, AE, V).}
+      roof_type: {type: string, required: false, definition: Roof construction.}
+      protection_class: {type: int, required: false, definition: Fire protection class 1-10.}
+
+  Coverage:
+    key: coverage_id
+    definition: A limit granted by a policy for a class of loss.
+    attributes:
+      coverage_id: {type: string, required: true, definition: Coverage identifier.}
+      policy_id: {type: string, required: true, definition: FK to Policy.}
+      coverage_type: {type: string, required: true, definition: Building, Contents, Business Interruption.}
+      limit: {type: float, required: true, definition: Coverage limit.}
+      deductible: {type: float, required: false, definition: Applicable deductible.}
+
+  Claim:
+    key: claim_id
+    definition: A notified loss against a policy for a scheduled property.
+    attributes:
+      claim_id: {type: string, required: true, definition: Claim identifier.}
+      property_id: {type: string, required: true, definition: FK to Property.}
+      policy_id: {type: string, required: true, definition: FK to Policy.}
+      loss_date: {type: date, required: true, definition: Date of loss.}
+      peril: {type: string, required: true, definition: Fire, Water, Wind, Theft, Other.}
+      loss_amount: {type: float, required: true, definition: Incurred loss amount.}
+      status: {type: string, required: true, definition: Open, Closed, Reserved.}
+      description: {type: string, required: false, definition: Short loss description.}
+
+  RiskAssessment:
+    key: assessment_id
+    definition: Derived underwriting view of a property at a point in time.
+    attributes:
+      assessment_id: {type: string, required: true, definition: Deterministic id, property + ruleset version.}
+      property_id: {type: string, required: true, definition: FK to Property.}
+      score: {type: float, required: true, definition: 0-100 risk score, higher is worse.}
+      band: {type: string, required: true, definition: Low, Medium, High, Decline.}
+      decision: {type: string, required: true, definition: Accept, Accept with conditions, Refer, Decline.}
+      ruleset_version: {type: string, required: true, definition: Version of the rules applied.}
+
+relationships:
+  - {name: BUYS,          from: Customer, to: Policy,         cardinality: one-to-many, definition: Customer buys Policy.}
+  - {name: COVERS,        from: Policy,   to: Property,       cardinality: one-to-many, definition: Policy schedules Property.}
+  - {name: HAS_COVERAGE,  from: Policy,   to: Coverage,       cardinality: one-to-many, definition: Policy grants Coverage.}
+  - {name: HAS_CLAIM,     from: Property, to: Claim,          cardinality: one-to-many, definition: Property has suffered Claim.}
+  - {name: CLAIMED_ON,    from: Claim,    to: Policy,         cardinality: many-to-one,  definition: Claim is notified against Policy.}
+  - {name: HAS_RISK,      from: Property, to: RiskAssessment, cardinality: one-to-many, definition: Property has derived RiskAssessment.}
+  - {name: INSURED_BY,    from: Property, to: Policy,         cardinality: many-to-one,  definition: Convenience edge mirroring COVERS.}
+
+# Source-field mapping: how raw source columns become canonical attributes.
+# The POC loads one deliberately "dirty" CSV through this map.
+source_mapping:
+  Property:
+    file: data/source/property_schedule_raw.csv
+    fields:
+      LOC_ID:        {to: property_id,        transform: strip_upper}
+      SITE_ADDR:     {to: address,            transform: title_case}
+      SITE_CITY:     {to: city,               transform: title_case}
+      STATE_CD:      {to: state,              transform: strip_upper}
+      ZIP:           {to: postcode,           transform: strip}
+      CONST_CLASS:   {to: construction_type,  transform: map_const}
+      YR_BUILT:      {to: year_built,         transform: to_int}
+      OCC_DESC:      {to: occupancy,          transform: map_occupancy}
+      GFA_SQFT:      {to: gross_floor_area_sqm, transform: sqft_to_sqm}
+      SI_AMT:        {to: sum_insured,        transform: to_float}
+      BLDG_VALUE:    {to: property_value,     transform: to_float}
+      SPRINK:        {to: sprinklered,        transform: to_bool}
+      FLOOD_ZONE:    {to: flood_zone,         transform: strip_upper}
+      ROOF:          {to: roof_type,          transform: title_case}
+      PROT_CLASS:    {to: protection_class,   transform: to_int}
+      POLICY:        {to: policy_id,          transform: strip_upper}
+
+rules:
+  version: 0.1.0
+  # points are summed, capped at 100. A hard stop forces Decline regardless.
+  scoring:
+    thresholds:
+      medium: 25
+      high: 45
+      decline: 65
+    max_score: 100
+  items:
+    - id: R01_CONSTRUCTION
+      name: Construction class
+      attribute: construction_type
+      points: {Frame: 18, Masonry: 6, Steel: 0}
+      default_points: 8
+    - id: R02_BUILDING_AGE
+      name: Building age
+      derived: age
+      bands:
+        - {max: 15, points: 0}
+        - {max: 40, points: 4}
+        - {max: 70, points: 10}
+        - {max: 999, points: 16}
+    - id: R03_FLOOD_ZONE
+      name: Flood zone exposure
+      attribute: flood_zone
+      points: {X: 0, B: 2, C: 2, A: 14, AE: 14, V: 22}
+      default_points: 6
+    - id: R04_SPRINKLER
+      name: Automatic sprinkler protection
+      attribute: sprinklered
+      points: {true: 0, false: 10}
+    - id: R05_OCCUPANCY
+      name: Occupancy hazard
+      attribute: occupancy
+      points: {Office: 0, Medical: 2, Retail: 3, Warehouse: 4, Logistics: 4, Mixed-use: 5, Multifamily: 6, Hotel: 10, Restaurant: 12}
+      default_points: 6
+    - id: R06_CLAIMS_HISTORY
+      name: Claims in last 36 months
+      kind: claims
+      per_claim_points: 5
+      severity: {total_amount: 100000, points: 8}
+      max_points: 25
+    - id: R07_UNDERINSURANCE
+      name: Declared value vs assessed value
+      kind: underinsurance
+      ratio_thresholds:
+        - {min_ratio: 0.95, points: 0}
+        - {min_ratio: 0.80, points: 6}
+        - {min_ratio: 0.60, points: 12}
+        - {min_ratio: 0.00, points: 18}
+    - id: R08_PROTECTION_CLASS
+      name: Fire protection class
+      attribute: protection_class
+      bands:
+        - {max: 4, points: 0}
+        - {max: 8, points: 3}
+        - {max: 10, points: 8}
+  hard_stops:
+    - id: HS01_HIGH_FLOOD
+      when: {flood_zone: V}
+      reason: Property sits in a V-rated coastal flood zone.
+    - id: HS02_OLD_FRAME_UNSPRINKLERED
+      when: {construction_type: Frame, sprinklered: false, year_built_below: 1950}
+      reason: Pre-1950 frame building with no sprinkler protection.
+    - id: HS03_LARGE_RECENT_LOSS
+      when: {claims_36m_total_above: 500000}
+      reason: Single-property incurred losses above 500k in the last 36 months.

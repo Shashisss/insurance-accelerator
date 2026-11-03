@@ -1,0 +1,9 @@
+policy_id,customer_id,policy_type,inception_date,expiry_date,status,premium,underwriter
+P1001,C001,Commercial Property,2025-04-01,2026-03-31,Active,184000,M. Osei
+P1002,C002,Commercial Property,2025-09-01,2026-08-31,Active,42000,J. Patel
+P1003,C003,Commercial Property,2026-01-01,2026-12-31,Active,96500,A. Rivera
+P1004,C004,Commercial Property,2025-06-15,2026-06-14,Active,38500,J. Patel
+P1005,C005,Commercial Property,2025-03-01,2026-02-28,Active,27400,M. Osei
+P1006,C006,Commercial Property,2026-02-01,2027-01-31,Active,132000,A. Rivera
+P1007,C007,Commercial Property,2025-11-01,2026-10-31,Active,210000,T. Byrne
+P1008,C008,Commercial Property,2026-03-01,2027-02-28,Active,74800,T. Byrne

@@ -1,0 +1,13 @@
+property_id,policy_id,address,city,state,postcode,construction_type,year_built,occupancy,gross_floor_area_sqm,sum_insured,property_value,sprinklered,flood_zone,roof_type,protection_class
+PR001,P1001,120 Elm St,Manchester,NH,03101,Masonry,1998,Office,4200,9800000,10500000,true,X,Built-up,3
+PR002,P1002,88 Main St,Concord,NH,03301,Frame,1962,Retail,1450,2400000,2900000,false,AE,Shingle,6
+PR003,P1003,4400 Industrial Pkwy,Austin,TX,78744,Steel,2015,Warehouse,8200,12500000,12000000,true,X,Metal,2
+PR004,P1004,15 Harbor Walk,Boston,MA,02110,Masonry,1975,Restaurant,980,3100000,3400000,true,X,Built-up,4
+PR005,P1005,210 Congress St,Portland,ME,04101,Frame,1948,Multifamily,2600,4200000,5300000,false,AE,Shingle,7
+PR006,P1006,7700 Logistics Dr,Dallas,TX,75212,Steel,2020,Logistics,11500,18000000,17500000,true,X,Metal,2
+PR007,P1002,300 Loudon Rd,Concord,NH,03301,Masonry,1988,Office,2200,5100000,5400000,false,X,Built-up,5
+PR008,P1007,601 Music Sq,Nashville,TN,37203,Frame,1935,Hotel,5400,15800000,17200000,false,A,Shingle,8
+PR009,P1008,9100 Desert Ridge,Phoenix,AZ,85050,Masonry,2005,Medical,3300,7600000,7400000,true,X,Built-up,3
+PR010,P1001,47 Canal St,Manchester,NH,03102,Steel,2012,Mixed-use,1900,3900000,4100000,true,X,Metal,3
+PR011,P1004,6 Beacon St,Boston,MA,02108,Frame,1968,Retail,1200,2100000,3000000,false,AE,Shingle,6
+PR012,P1003,9810 Warehouse Row,Austin,TX,78744,Masonry,1979,Warehouse,6800,4400000,7600000,true,AE,Metal,5
