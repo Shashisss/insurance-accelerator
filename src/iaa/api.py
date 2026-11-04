@@ -41,9 +41,8 @@ def ontology() -> dict[str, Any]:
 def rules() -> dict[str, Any]:
     onto = get_ontology()
     return {
-        "ruleset_version": onto.rule_version,
-        "thresholds": onto.thresholds,
-        "items": [{"id": r.id, "name": r.name, **{k: v for k, v in r.raw.items() if k not in {"id", "name"}}} for r in onto.rule_items],
+        "summary": onto.scoring_summary(),
+        "rules": onto.rule_catalogue(),
         "hard_stops": onto.hard_stops,
     }
 
@@ -92,3 +91,20 @@ def assessment(property_id: str, as_of: str | None = None) -> dict[str, Any]:
     if result is None:
         raise HTTPException(status_code=404, detail=f"Unknown property {property_id}")
     return result
+
+
+@app.get("/properties/{property_id}/validation")
+def validation(property_id: str, as_of: str | None = None) -> dict[str, Any]:
+    """Re-derive every rule's points from the configuration and compare."""
+    from .validation import audit_assessment
+
+    result = assess_property(get_store(), property_id, as_of=as_of)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Unknown property {property_id}")
+    rows = audit_assessment(get_ontology(), result)
+    return {
+        "property_id": property_id,
+        "ruleset_version": result["ruleset_version"],
+        "checks": rows,
+        "all_match": all(row["matches"] for row in rows),
+    }

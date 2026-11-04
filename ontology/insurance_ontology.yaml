@@ -128,11 +128,13 @@ rules:
     max_score: 100
   items:
     - id: R01_CONSTRUCTION
+      rationale: "Combustible structure dominates fire loss; steel is treated as the neutral baseline."
       name: Construction class
       attribute: construction_type
       points: {Frame: 18, Masonry: 6, Steel: 0}
       default_points: 8
     - id: R02_BUILDING_AGE
+      rationale: "Older buildings carry legacy wiring, unlined shafts and lower compartmentation."
       name: Building age
       derived: age
       bands:
@@ -141,26 +143,31 @@ rules:
         - {max: 70, points: 10}
         - {max: 999, points: 16}
     - id: R03_FLOOD_ZONE
+      rationale: "The FEMA zone is the simplest available proxy for flood probability at an address."
       name: Flood zone exposure
       attribute: flood_zone
       points: {X: 0, B: 2, C: 2, A: 14, AE: 14, V: 22}
       default_points: 6
     - id: R04_SPRINKLER
+      rationale: "A working sprinkler system is the strongest single loss-mitigation feature."
       name: Automatic sprinkler protection
       attribute: sprinklered
       points: {true: 0, false: 10}
     - id: R05_OCCUPANCY
+      rationale: "Cooking, guests, stock and public access raise both fire load and business interruption."
       name: Occupancy hazard
       attribute: occupancy
       points: {Office: 0, Medical: 2, Retail: 3, Warehouse: 4, Logistics: 4, Mixed-use: 5, Multifamily: 6, Hotel: 10, Restaurant: 12}
       default_points: 6
     - id: R06_CLAIMS_HISTORY
+      rationale: "Past loss at the same address is the best available predictor of future loss."
       name: Claims in last 36 months
       kind: claims
       per_claim_points: 5
       severity: {total_amount: 100000, points: 8}
       max_points: 25
     - id: R07_UNDERINSURANCE
+      rationale: "Under-declared value means every claim is reduced pro rata at settlement."
       name: Declared value vs assessed value
       kind: underinsurance
       ratio_thresholds:
@@ -169,6 +176,7 @@ rules:
         - {min_ratio: 0.60, points: 12}
         - {min_ratio: 0.00, points: 18}
     - id: R08_PROTECTION_CLASS
+      rationale: "Protection class reflects water supply and fire-service response quality."
       name: Fire protection class
       attribute: protection_class
       bands:
@@ -176,6 +184,7 @@ rules:
         - {max: 8, points: 3}
         - {max: 10, points: 8}
   hard_stops:
+    # A hard stop declines the risk regardless of the points total.
     - id: HS01_HIGH_FLOOD
       when: {flood_zone: V}
       reason: Property sits in a V-rated coastal flood zone.

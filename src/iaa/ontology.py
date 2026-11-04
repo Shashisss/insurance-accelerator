@@ -53,6 +53,125 @@ class RuleItem:
     raw: dict[str, Any]
 
 
+def _fmt_number(value: float | int) -> str:
+    return f"{value:,.0f}" if float(value).is_integer() else f"{value:,.2f}"
+
+
+def format_rule_points(raw: dict[str, Any]) -> str:
+    """Render a rule's scoring table as one readable line, straight from the YAML."""
+    kind = raw.get("kind")
+
+    if kind == "claims":
+        per = raw.get("per_claim_points", 0)
+        sev = raw.get("severity", {})
+        cap = raw.get("max_points")
+        parts = [f"{per} per claim in window"]
+        if sev:
+            parts.append(f"+{sev.get('points', 0)} if total > {_fmt_number(sev.get('total_amount', 0))}")
+        if cap:
+            parts.append(f"capped at {cap}")
+        return " · ".join(parts)
+
+    if kind == "underinsurance":
+        bands = sorted(raw.get("ratio_thresholds", []), key=lambda b: float(b["min_ratio"]), reverse=True)
+        labels = []
+        for index, band in enumerate(bands):
+            ratio = float(band["min_ratio"])
+            lower = bands[index + 1]["min_ratio"] if index + 1 < len(bands) else None
+            if lower in (None, 0, 0.0):
+                labels.append(f"<{ratio:.0%} {band['points']}")
+            else:
+                labels.append(f"≥{ratio:.0%} {band['points']}")
+        return " · ".join(labels)
+
+    if "bands" in raw or "banded" in raw:
+        bands = sorted(raw.get("bands", []), key=lambda b: b["max"])
+        unit = "y" if raw.get("derived") == "age" else ""
+        labels, previous = [], None
+        for band in bands:
+            top = band["max"]
+            if previous is None:
+                labels.append(f"≤{top}{unit} {band['points']}")
+            elif top >= 999:
+                labels.append(f"> {previous}{unit} {band['points']}")
+            else:
+                labels.append(f"≤{top}{unit} {band['points']}")
+            previous = top
+        return " · ".join(labels)
+
+    points = raw.get("points", {})
+    if isinstance(points, dict):
+        labels = []
+        for key, value in points.items():
+            if isinstance(key, bool) or str(key).lower() in {"true", "false"}:
+                is_true = key is True or str(key).lower() == "true"
+                labels.append(f"{'sprinklered' if is_true else 'no sprinklers'} {value}")
+            else:
+                labels.append(f"{key} {value}")
+        default = raw.get("default_points")
+        if default is not None:
+            labels.append(f"other/missing {default}")
+        return " · ".join(labels)
+
+    return ""
+
+
+CONDITION_LABELS = {
+    "flood_zone": "flood zone",
+    "construction_type": "construction type",
+    "sprinklered": "sprinklered",
+    "year_built_below": "built before",
+    "claims_36m_total_above": "claims in 36 months above",
+}
+
+
+def format_condition(when: dict[str, Any]) -> str:
+    """Turn a hard-stop condition dict into a sentence a reviewer can read."""
+    parts = []
+    for key, value in when.items():
+        label = CONDITION_LABELS.get(key, key.replace("_", " "))
+        if key == "sprinklered":
+            parts.append(f"{label} = {'yes' if value else 'no'}")
+        elif key == "claims_36m_total_above":
+            parts.append(f"{label} {float(value):,.0f}")
+        elif key == "year_built_below":
+            parts.append(f"{label} {value}")
+        elif key == "flood_zone":
+            parts.append(f"flood zone {value}")
+        elif key == "construction_type":
+            parts.append(f"{label} {value}")
+        else:
+            parts.append(f"{label} {value}")
+    return " and ".join(parts)
+
+
+def describe_rule(raw: dict[str, Any]) -> dict[str, Any]:
+    """One row of the rule catalogue: what it reads, what it awards, why."""
+    kind = raw.get("kind")
+    if kind == "claims":
+        reads = "claims in the last 36 months"
+        max_points = int(raw.get("max_points", 0))
+    elif kind == "underinsurance":
+        reads = "sum insured ÷ assessed value"
+        max_points = max((int(b["points"]) for b in raw.get("ratio_thresholds", [])), default=0)
+    elif "bands" in raw:
+        reads = f"{raw.get('derived') or raw.get('attribute')}" + (" (from year built)" if raw.get("derived") == "age" else "")
+        max_points = max((int(b["points"]) for b in raw.get("bands", [])), default=0)
+    else:
+        reads = str(raw.get("attribute", ""))
+        max_points = max((int(v) for v in raw.get("points", {}).values()), default=0)
+
+    return {
+        "id": raw["id"],
+        "name": raw["name"],
+        "reads": reads,
+        "points": format_rule_points(raw),
+        "max_points": max_points,
+        "rationale": raw.get("rationale", ""),
+        "kind": kind or "attribute",
+    }
+
+
 @dataclass(frozen=True)
 class Ontology:
     version: str
@@ -84,6 +203,20 @@ class Ontology:
     @property
     def hard_stops(self) -> list[dict[str, Any]]:
         return list(self.rules.get("hard_stops", []))
+
+    def rule_catalogue(self) -> list[dict[str, Any]]:
+        """Rules, their scoring tables and their rationale — for the UI and /rules."""
+        return [describe_rule(item.raw) for item in self.rule_items]
+
+    def scoring_summary(self) -> dict[str, Any]:
+        scoring = self.rules.get("scoring", {})
+        return {
+            "ruleset_version": self.rule_version,
+            "max_score": int(scoring.get("max_score", 100)),
+            "thresholds": self.thresholds,
+            "rule_count": len(self.rule_items),
+            "hard_stop_count": len(self.hard_stops),
+        }
 
     def describe(self) -> dict[str, Any]:
         """Serialisable view used by /ontology and the UI."""

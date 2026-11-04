@@ -16,9 +16,10 @@ import streamlit as st
 
 from iaa.graph import get_store
 from iaa.ingest import map_source_file
-from iaa.ontology import get_ontology
+from iaa.ontology import format_condition, get_ontology
 from iaa.risk import assess_all, assess_property, portfolio_summary
 from iaa.rules import months_ago
+from iaa.validation import audit_assessment
 from iaa.viz import cypher_for_property, dot_for_book, dot_for_property
 from iaa.config import settings
 
@@ -28,6 +29,12 @@ st.set_page_config(page_title="Insurance Ontology Accelerator", page_icon="🏢"
 
 store = get_store()
 ontology = get_ontology()
+
+
+@st.cache_data(show_spinner=False)
+def all_assessments(as_of: str | None = None) -> list[dict]:
+    return assess_all(store, as_of=as_of)
+
 properties = store.list_properties()
 labels = {f"{p['property_id']} · {p['address']}, {p.get('city')} {p.get('state')}": p["property_id"] for p in properties}
 
@@ -134,8 +141,8 @@ with right:
 
 # ---------------------------------------------------------------- tabs
 st.divider()
-tab_graph, tab_portfolio, tab_mapping, tab_ontology, tab_quality = st.tabs(
-    ["Graph view", "Portfolio", "Source mapping", "Ontology", "Data quality"]
+tab_graph, tab_portfolio, tab_rules, tab_mapping, tab_ontology, tab_quality = st.tabs(
+    ["Graph view", "Portfolio", "Rules & scoring", "Source mapping", "Ontology", "Data quality"]
 )
 
 with tab_graph:
@@ -151,7 +158,7 @@ with tab_graph:
         st.graphviz_chart(dot_for_property(store, property_id, result), use_container_width=True)
 
     with book:
-        st.graphviz_chart(dot_for_book(store, assess_all(store)), use_container_width=True)
+        st.graphviz_chart(dot_for_book(store, all_assessments()), width="stretch")
 
     with st.expander("Node and relationship tables"):
         nodes = [{"id": customer["customer_id"], "label": "Customer", "name": customer["name"]},
@@ -189,7 +196,7 @@ with tab_graph:
         )
 
 with tab_portfolio:
-    assessments = assess_all(store)
+    assessments = all_assessments()
     summary = portfolio_summary(assessments)
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Properties", summary["properties"])
@@ -213,6 +220,109 @@ with tab_portfolio:
     ).sort_values("Score", ascending=False)
     st.dataframe(frame, hide_index=True, width="stretch")
     st.bar_chart(frame.set_index("Property")["Score"])
+
+with tab_rules:
+    summary = ontology.scoring_summary()
+    thresholds = summary["thresholds"]
+    st.caption(
+        f"Ruleset v{summary['ruleset_version']} · {summary['rule_count']} rules · "
+        f"score capped at {summary['max_score']} · bands: "
+        f"< {thresholds['medium']} Low · {thresholds['medium']}–{thresholds['high'] - 1} Medium · "
+        f"{thresholds['high']}–{thresholds['decline'] - 1} High · ≥ {thresholds['decline']} Decline"
+    )
+
+    catalogue = ontology.rule_catalogue()
+    st.markdown("**The ruleset, as configured**")
+    st.dataframe(
+        pd.DataFrame(
+            [
+                {
+                    "Rule": row["id"],
+                    "Factor": row["name"],
+                    "Reads": row["reads"],
+                    "Points awarded": row["points"],
+                    "Why": row["rationale"],
+                }
+                for row in catalogue
+            ]
+        ),
+        hide_index=True,
+        width="stretch",
+        column_config={
+            "Rule": st.column_config.TextColumn(width="medium"),
+            "Factor": st.column_config.TextColumn(width="small"),
+            "Reads": st.column_config.TextColumn(width="small"),
+            "Points awarded": st.column_config.TextColumn(width="large"),
+            "Why": st.column_config.TextColumn(width="large"),
+        },
+    )
+
+    st.markdown("**Hard stops** — these decline regardless of the points total")
+    st.dataframe(
+        pd.DataFrame(
+            [
+                {"Stop": s["id"], "Condition": format_condition(s.get("when", {})), "Reason": s.get("reason", "")}
+                for s in ontology.hard_stops
+            ]
+        ),
+        hide_index=True,
+        width="stretch",
+    )
+
+    st.divider()
+    st.markdown(f"**Validate the assessment for {property_id}**")
+    st.caption(
+        "Two independent calculations, side by side: the points the engine awarded, and the points the "
+        "configuration implies for the same inputs. A mismatch means the rule or its data has drifted."
+    )
+    audit_rows = audit_assessment(ontology, result)
+    applied_by_rule = {f["rule_id"]: f for f in result["findings"]}
+    st.dataframe(
+        pd.DataFrame(
+            [
+                {
+                    "Rule": row["rule_id"],
+                    "Input the engine read": ", ".join(
+                        f"{k}={v}" for k, v in (applied_by_rule.get(row["rule_id"], {}).get("inputs") or {}).items()
+                    ),
+                    "Awarded": row["applied"],
+                    "Implied by config": row["expected"],
+                    "Check": "matches" if row["matches"] else "MISMATCH",
+                    "Note": row["note"],
+                }
+                for row in audit_rows
+            ]
+        ),
+        hide_index=True,
+        width="stretch",
+    )
+    mismatches = [row for row in audit_rows if not row["matches"]]
+    if mismatches:
+        st.error(f"{len(mismatches)} rule(s) disagree with the configuration: {', '.join(m['rule_id'] for m in mismatches)}")
+    else:
+        st.success(f"All {len(audit_rows)} rules agree with the configuration.")
+
+    hits = []
+    portfolio_rows = all_assessments()
+    for row in catalogue:
+        fired = [a for a in portfolio_rows if any(f["rule_id"] == row["id"] and f["points"] > 0 for f in a["findings"])]
+        highest = max(
+            (f["points"] for a in portfolio_rows for f in a["findings"] if f["rule_id"] == row["id"]),
+            default=0,
+        )
+        hits.append(
+            {
+                "Rule": row["id"],
+                "Factor": row["name"],
+                "Properties it fires on": len(fired),
+                "Highest award in the book": highest,
+                "Of": len(portfolio_rows),
+            }
+        )
+    with st.expander("How often each rule fires across the book"):
+        st.dataframe(pd.DataFrame(hits), hide_index=True, width="stretch")
+        st.caption("A rule that never fires on this book is either irrelevant or mis-specified — both worth knowing.")
+
 
 with tab_mapping:
     st.caption("Raw insurer schedule extract mapped onto the canonical Property entity via the ontology's `source_mapping`.")
