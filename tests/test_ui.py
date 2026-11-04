@@ -15,7 +15,7 @@ def test_workbench_renders():
     labels = [m.label for m in at.metric]
     assert "Risk score" in labels and "Decision" in labels
     assert at.selectbox[0].value.startswith("PR001")
-    assert len(at.tabs) == 5
+    assert len(at.tabs) >= 5  # five top-level tabs, plus nested graph tabs
 
 
 def test_workbench_follows_the_selected_property():

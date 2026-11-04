@@ -19,6 +19,7 @@ from iaa.ingest import map_source_file
 from iaa.ontology import get_ontology
 from iaa.risk import assess_all, assess_property, portfolio_summary
 from iaa.rules import months_ago
+from iaa.viz import cypher_for_property, dot_for_book, dot_for_property
 from iaa.config import settings
 
 BAND_COLOR = {"Low": "🟢", "Medium": "🟡", "High": "🟠", "Decline": "🔴"}
@@ -138,27 +139,54 @@ tab_graph, tab_portfolio, tab_mapping, tab_ontology, tab_quality = st.tabs(
 )
 
 with tab_graph:
-    nodes = [{"id": customer["customer_id"], "label": "Customer", "name": customer["name"]},
-             {"id": policy["policy_id"], "label": "Policy", "name": policy["policy_type"]},
-             {"id": prop["property_id"], "label": "Property", "name": prop["address"]}]
-    nodes += [{"id": c["coverage_id"], "label": "Coverage", "name": c["coverage_type"]} for c in ctx["coverages"]]
-    nodes += [{"id": c["claim_id"], "label": "Claim", "name": f"{c['peril']} {c['loss_amount']:,.0f}"} for c in ctx["claims"]]
-    edges = [("Customer", customer["customer_id"], "BUYS", "Policy", policy["policy_id"]),
-             ("Policy", policy["policy_id"], "COVERS", "Property", prop["property_id"])]
-    edges += [("Policy", policy["policy_id"], "HAS_COVERAGE", "Coverage", c["coverage_id"]) for c in ctx["coverages"]]
-    edges += [("Property", prop["property_id"], "HAS_CLAIM", "Claim", c["claim_id"]) for c in ctx["claims"]]
-    edges += [("Property", prop["property_id"], "HAS_RISK", "RiskAssessment", result["assessment_id"])]
-
-    gc1, gc2 = st.columns(2)
-    gc1.markdown("**Nodes**")
-    gc1.dataframe(pd.DataFrame(nodes), hide_index=True, width="stretch")
-    gc2.markdown("**Relationships**")
-    gc2.dataframe(
-        pd.DataFrame([{"from_label": a, "from": b, "rel": c, "to_label": d, "to": e} for a, b, c, d, e in edges]),
-        hide_index=True,
-        width="stretch",
+    st.caption(
+        "Every node and relationship the assessment just walked. Coloured by entity type; "
+        "the risk node carries the band. This is the same data the in-memory store holds — "
+        "and the same shape as what `scripts/load_neo4j.py` writes into Neo4j."
     )
-    st.caption("Same shape as the Cypher in `src/iaa/queries.py` (PROPERTY_360). Load into Neo4j with `scripts/load_neo4j.py`.")
+
+    one, book = st.tabs([f"This property ({property_id})", "Whole book (customers → policies → properties)"])
+
+    with one:
+        st.graphviz_chart(dot_for_property(store, property_id, result), use_container_width=True)
+
+    with book:
+        st.graphviz_chart(dot_for_book(store, assess_all(store)), use_container_width=True)
+
+    with st.expander("Node and relationship tables"):
+        nodes = [{"id": customer["customer_id"], "label": "Customer", "name": customer["name"]},
+                 {"id": policy["policy_id"], "label": "Policy", "name": policy["policy_type"]},
+                 {"id": prop["property_id"], "label": "Property", "name": prop["address"]}]
+        nodes += [{"id": c["coverage_id"], "label": "Coverage", "name": c["coverage_type"]} for c in ctx["coverages"]]
+        nodes += [{"id": c["claim_id"], "label": "Claim", "name": f"{c['peril']} {c['loss_amount']:,.0f}"} for c in ctx["claims"]]
+        edges = [("Customer", customer["customer_id"], "BUYS", "Policy", policy["policy_id"]),
+                 ("Policy", policy["policy_id"], "COVERS", "Property", prop["property_id"])]
+        edges += [("Policy", policy["policy_id"], "HAS_COVERAGE", "Coverage", c["coverage_id"]) for c in ctx["coverages"]]
+        edges += [("Property", prop["property_id"], "HAS_CLAIM", "Claim", c["claim_id"]) for c in ctx["claims"]]
+        edges += [("Property", prop["property_id"], "HAS_RISK", "RiskAssessment", result["assessment_id"])]
+
+        gc1, gc2 = st.columns(2)
+        gc1.markdown("**Nodes**")
+        gc1.dataframe(pd.DataFrame(nodes), hide_index=True, width="stretch")
+        gc2.markdown("**Relationships**")
+        gc2.dataframe(
+            pd.DataFrame([{"from_label": a, "from": b, "rel": c, "to_label": d, "to": e} for a, b, c, d, e in edges]),
+            hide_index=True,
+            width="stretch",
+        )
+
+    with st.expander("Export — Graphviz DOT / Cypher"):
+        e1, e2 = st.columns(2)
+        e1.markdown("**Graphviz DOT**")
+        e1.code(dot_for_property(store, property_id, result), language="dot")
+        e2.markdown("**Cypher (paste into Neo4j Browser)**")
+        e2.code(cypher_for_property(store, property_id), language="cypher")
+        st.download_button(
+            "Download this property as Cypher",
+            data=cypher_for_property(store, property_id),
+            file_name=f"{property_id}.cypher",
+            mime="text/plain",
+        )
 
 with tab_portfolio:
     assessments = assess_all(store)
