@@ -107,6 +107,33 @@ The 36-month claim window is computed from the assessment date, so the same book
 | `GET /properties/{id}/assessment?as_of=` | full explained assessment |
 | `GET /portfolio` | all assessments + band distribution |
 
+## Second use case: fleet renewal (ABC Express)
+
+The framework deck's fleet scenario, running on the same engine:
+`Group → LegalEntity → Policy → Vehicle → Claim`, plus three things the property
+case did not need.
+
+| Addition | Why | Where |
+| --- | --- | --- |
+| **Time-valid edges** | a vehicle↔policy link is an assignment with a valid period, so "which fleet did P205 cover at renewal" is a query | `Assignment` in `ontology/fleet_ontology.yaml`, `FleetStore.vehicles_on_policy(pid, as_of)` |
+| **Group above entity** | FR2 fires on 150 vehicles across two entities — invisible to any single policy | `FleetStore.group_vehicle_count()` |
+| **Governed metrics** | rules reference a metric definition and version, never a number; changing it is traceable | `ontology/fleet_metrics.yaml`, `impact_trace()` |
+
+```bash
+python scripts/build_fleet_data.py      # regenerates the 150-vehicle scenario
+streamlit run streamlit_app.py          # sidebar → "Fleet renewal"
+python -m pytest tests/test_fleet.py -q # 15 checks
+```
+
+The numbers reproduce the deck: loss ratio **50% → 60%** (v2 adds ALAE),
+frequency **13.3** per 100 vehicle-years, severity **30,000**, group **150 > 120**,
+**40** vehicles transferred, decision **refer + group assessment**. The impact
+trace shows both policies changing decision when the metric definition moves
+from v1 to v2.
+
+API: `/fleet/policies`, `/fleet/policies/{id}/assessment`, `/fleet/groups/{id}`,
+`/fleet/impact-trace`.
+
 ## Deliberate non-goals for now
 
 No ACORD/OPIN dependency, no OWL/Protégé reasoning, no separate vector database, no GraphRAG,

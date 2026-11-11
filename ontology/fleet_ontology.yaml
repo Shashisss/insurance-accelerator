@@ -1,0 +1,110 @@
+# Fleet Renewal ontology — the ABC Express use case from the framework deck.
+#
+# Same shape as the property onboarding: entities, relationships, a governed
+# metric set and two rules. What is new here is *time on the edges*
+# (a vehicle↔policy assignment is valid for a period) and a group above the
+# legal entity, because the renewal decision depends on both.
+version: 0.1.0
+domain: fleet-renewal
+
+entities:
+  Group:
+    key: group_id
+    definition: Commercial grouping of legal entities under common ownership.
+    attributes:
+      group_id: {type: string, required: true, definition: Group identifier.}
+      name: {type: string, required: true, definition: Trading name of the group.}
+      segment: {type: string, required: false, definition: Segment.}
+      region: {type: string, required: false, definition: Primary region.}
+      restructured_on: {type: date, required: false, definition: Date the group split into entities.}
+
+  LegalEntity:
+    key: entity_id
+    definition: Insured legal entity; the policyholder.
+    attributes:
+      entity_id: {type: string, required: true, definition: Entity identifier.}
+      group_id: {type: string, required: true, definition: FK to Group.}
+      name: {type: string, required: true, definition: Registered name.}
+      type: {type: string, required: false, definition: Operating / holding company.}
+      incorporated_on: {type: date, required: false, definition: Date of incorporation.}
+
+  Policy:
+    key: policy_id
+    definition: Fleet motor policy covering the vehicles scheduled to it at a point in time.
+    attributes:
+      policy_id: {type: string, required: true, definition: Policy identifier.}
+      entity_id: {type: string, required: true, definition: FK to LegalEntity.}
+      policy_type: {type: string, required: true, definition: Product line.}
+      inception_date: {type: date, required: true, definition: Cover start.}
+      expiry_date: {type: date, required: true, definition: Cover end.}
+      status: {type: string, required: true, definition: Active, Renewal due, Lapsed.}
+      premium: {type: float, required: true, definition: Annual premium.}
+      renewal_date: {type: date, required: false, definition: Next renewal date.}
+      underwriter: {type: string, required: false, definition: Accountable underwriter.}
+
+  Vehicle:
+    key: vehicle_id
+    definition: Insured vehicle. Identity survives policy transfers.
+    attributes:
+      vehicle_id: {type: string, required: true, definition: Vehicle identifier.}
+      registration: {type: string, required: true, definition: Registration mark.}
+      make: {type: string, required: false, definition: Manufacturer.}
+      model: {type: string, required: false, definition: Model.}
+      year: {type: int, required: false, definition: Year of manufacture.}
+      vehicle_class: {type: string, required: false, definition: LCV / HCV.}
+      gvw_tonnes: {type: float, required: false, definition: Gross vehicle weight.}
+
+  Assignment:
+    key: assignment_id
+    definition: Time-valid link between a Vehicle and the Policy covering it.
+    attributes:
+      assignment_id: {type: string, required: true, definition: Assignment identifier.}
+      vehicle_id: {type: string, required: true, definition: FK to Vehicle.}
+      policy_id: {type: string, required: true, definition: FK to Policy.}
+      valid_from: {type: date, required: true, definition: Start of cover under this policy.}
+      valid_to: {type: date, required: true, definition: End of cover under this policy.}
+      transfer_reason: {type: string, required: false, definition: Why the vehicle sits here.}
+
+  Claim:
+    key: claim_id
+    definition: A loss on a vehicle, attributed to the policy in force at the loss date.
+    attributes:
+      claim_id: {type: string, required: true, definition: Claim identifier.}
+      vehicle_id: {type: string, required: true, definition: FK to Vehicle.}
+      policy_id: {type: string, required: true, definition: Policy in force at loss date.}
+      loss_date: {type: date, required: true, definition: Date of loss.}
+      peril: {type: string, required: true, definition: Own damage / Third party.}
+      incurred: {type: float, required: true, definition: Incurred loss.}
+      alae: {type: float, required: true, definition: Allocated loss adjustment expense.}
+      status: {type: string, required: true, definition: Open / Closed.}
+      description: {type: string, required: false, definition: Short description.}
+
+relationships:
+  - {name: OWNS,        from: Group,        to: LegalEntity, cardinality: one-to-many, definition: Group owns entity.}
+  - {name: HOLDS,       from: LegalEntity,  to: Policy,      cardinality: one-to-many, definition: Entity holds policy.}
+  - {name: COVERS,      from: Policy,       to: Vehicle,     cardinality: many-to-many, definition: Policy covers vehicle, for a period.}
+  - {name: HAS_CLAIM,   from: Vehicle,      to: Claim,       cardinality: one-to-many, definition: Vehicle has claim.}
+  - {name: CLAIMED_ON,  from: Claim,        to: Policy,      cardinality: many-to-one,  definition: Claim notified to policy in force.}
+
+rules:
+  version: 0.2.0
+  metrics_file: ontology/fleet_metrics.yaml
+  items:
+    - id: FR1_LOSS_RATIO
+      name: Loss ratio at or above referral threshold
+      metric: loss_ratio
+      operator: gte
+      threshold: 0.60
+      on_breach: refer
+      rationale: Fleet business above 60% loss ratio is referred for senior review before renewal terms are offered.
+    - id: FR2_GROUP_SCALE
+      name: Group exposure above single-underwriter limit
+      metric: group_vehicles
+      operator: gt
+      threshold: 120
+      on_breach: group_review
+      rationale: Groups above 120 vehicles require a group-level assessment, not a policy-level renewal.
+  decisions:
+    refer: Refer for senior review
+    group_review: Group assessment required
+    accept: Accept

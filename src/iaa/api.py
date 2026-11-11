@@ -108,3 +108,74 @@ def validation(property_id: str, as_of: str | None = None) -> dict[str, Any]:
         "checks": rows,
         "all_match": all(row["matches"] for row in rows),
     }
+
+
+# --------------------------------------------------------------------------
+# Fleet renewal use case (ABC Express)
+# --------------------------------------------------------------------------
+def _fleet():
+    from .fleet import load_fleet, MetricRegistry
+
+    return load_fleet(), MetricRegistry()
+
+
+def _as_date(value: str | None):
+    from datetime import date
+
+    return date.fromisoformat(value) if value else date(2026, 12, 31)
+
+
+@app.get("/fleet/policies")
+def fleet_policies(as_of: str | None = None, version: str | None = None) -> dict[str, Any]:
+    from .fleet import assess_policy
+
+    store, registry = _fleet()
+    day = _as_date(as_of)
+    rows = []
+    for policy in store.list_policies():
+        result = assess_policy(store, registry, policy["policy_id"], day, version)
+        rows.append({
+            "policy_id": policy["policy_id"],
+            "entity": result["entity_name"],
+            "renewal_date": result["renewal_date"],
+            "vehicles": result["metrics"]["vehicles"],
+            "loss_ratio": result["metrics"]["loss_ratio"],
+            "frequency": result["metrics"]["frequency"],
+            "severity": result["metrics"]["severity"],
+            "decision": result["decision"],
+        })
+    return {"as_of": day.isoformat(), "metrics_version": version or "v2", "policies": rows}
+
+
+@app.get("/fleet/policies/{policy_id}/assessment")
+def fleet_assessment(policy_id: str, as_of: str | None = None, version: str | None = None) -> dict[str, Any]:
+    from .fleet import assess_policy
+
+    store, registry = _fleet()
+    result = assess_policy(store, registry, policy_id, _as_date(as_of), version)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Unknown fleet policy {policy_id}")
+    return result
+
+
+@app.get("/fleet/groups/{group_id}")
+def fleet_group(group_id: str, as_of: str | None = None, version: str | None = None) -> dict[str, Any]:
+    from .fleet import group_metrics
+
+    store, registry = _fleet()
+    if store.group(group_id) is None:
+        raise HTTPException(status_code=404, detail=f"Unknown group {group_id}")
+    day = _as_date(as_of)
+    return {
+        "group": store.group(group_id),
+        "metrics": group_metrics(store, registry, group_id, day, version),
+        "policies": [p["policy_id"] for p in store.group_policies(group_id)],
+    }
+
+
+@app.get("/fleet/impact-trace")
+def fleet_impact_trace(as_of: str | None = None, from_version: str = "v1", to_version: str = "v2") -> dict[str, Any]:
+    from .fleet import impact_trace
+
+    store, registry = _fleet()
+    return impact_trace(store, registry, _as_date(as_of), from_version, to_version)

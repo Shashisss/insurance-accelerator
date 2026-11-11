@@ -1,0 +1,3 @@
+policy_id,entity_id,policy_type,inception_date,expiry_date,status,premium,renewal_date,underwriter
+P101,E1,Commercial Vehicle Fleet,2026-04-01,2026-12-31,Active,720000,2027-01-01,A. Rivera
+P205,E2,Commercial Vehicle Fleet,2026-04-01,2026-12-31,Renewal due,360000,2027-01-01,M. Osei

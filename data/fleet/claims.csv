@@ -1,0 +1,14 @@
+claim_id,vehicle_id,policy_id,loss_date,peril,incurred,alae,status,description
+CL501,V003,P205,2026-04-19,Own damage,30000,6000,Closed,Minor collision / panel damage
+CL502,V012,P205,2026-05-28,Own damage,30000,6000,Closed,Minor collision / panel damage
+CL503,V038,P205,2026-06-11,Third party,30000,6000,Closed,Third-party property damage
+CL504,V085,P205,2026-07-02,Own damage,30000,6000,Closed,Minor collision / panel damage
+CL505,V097,P205,2026-09-09,Own damage,30000,6000,Closed,Minor collision / panel damage
+CL506,V100,P205,2026-10-21,Third party,30000,6000,Open,Third-party property damage
+CL101,V045,P101,2026-04-25,Own damage,50000,22000,Closed,Collision with roadside barrier
+CL102,V052,P101,2026-06-03,Own damage,50000,22000,Closed,Collision with roadside barrier
+CL103,V069,P101,2026-06-29,Own damage,50000,22000,Closed,Collision with roadside barrier
+CL104,V104,P101,2026-08-05,Own damage,50000,22000,Closed,Collision with roadside barrier
+CL105,V121,P101,2026-09-22,Own damage,50000,22000,Closed,Collision with roadside barrier
+CL106,V140,P101,2026-10-30,Own damage,50000,22000,Closed,Collision with roadside barrier
+CL001,V041,P205,2025-08-14,Third party,500000,60000,Closed,Fatal third-party liability; V041 transferred to P101 on 2026-04-01

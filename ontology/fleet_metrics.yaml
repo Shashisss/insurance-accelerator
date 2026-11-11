@@ -1,0 +1,58 @@
+# Governed metrics for the fleet renewal use case.
+#
+# A metric is not a query — it is a definition with a version, an owner and a
+# change note. The rules reference the metric, never a hardcoded number, so
+# changing a definition is a visible, traceable act (see `impact_trace`).
+version: 2.0.0
+scope: policy
+
+metrics:
+  loss_ratio:
+    name: Loss ratio
+    definition: Incurred losses divided by earned premium for the covered period.
+    unit: percent
+    higher_is_worse: true
+    versions:
+      - version: v1
+        formula: incurred / premium
+        effective_from: 2024-01-01
+        note: Baseline definition.
+      - version: v2
+        formula: (incurred + alae) / premium
+        effective_from: 2026-01-01
+        note: Adds allocated loss adjustment expense — the deck's 50% -> 60% change.
+        supersedes: v1
+    current: v2
+
+  claim_frequency:
+    name: Claim frequency
+    definition: Claims per 100 vehicle-years of exposure.
+    unit: per 100 vehicle-years
+    higher_is_worse: true
+    versions:
+      - version: v1
+        formula: claims / vehicle_years * 100
+        effective_from: 2024-01-01
+        note: Exposure measured as scheduled vehicles x days in force / 365.25.
+
+  claim_severity:
+    name: Claim severity
+    definition: Average incurred cost per claim.
+    unit: currency
+    higher_is_worse: true
+    versions:
+      - version: v1
+        formula: incurred / claims
+        effective_from: 2024-01-01
+        note: ALAE is not included in severity; it belongs to the loss ratio definition.
+
+  group_vehicles:
+    name: Group fleet size
+    definition: Count of distinct vehicles scheduled to any policy in the group on the assessment date.
+    unit: vehicles
+    higher_is_worse: true
+    versions:
+      - version: v1
+        formula: count(distinct vehicles across group policies at date)
+        effective_from: 2024-01-01
+        note: Uses time-valid assignments, so transfers do not double count.
