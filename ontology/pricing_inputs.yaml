@@ -1,0 +1,38 @@
+# Pricing inputs for the rate-adequacy use case (ABC Express, P205).
+#
+# Every assumption is a named, versioned object with an owner — the point of the
+# use case is that an indication can be recomputed and defended, not that the
+# arithmetic is clever.
+version: 0.2.0
+policy_id: P205
+policy_year: 2026
+exposure_vehicles: 100
+current_premium: 1000000        # ₹10,00,000
+incurred_claims: 720000         # ₹7,20,000 — 72% loss ratio today
+earned_exposure_vehicle_years: 100.0
+
+assumptions:
+  severity_trend: 0.10          # +10%
+  frequency_trend: 0.05         # +5%
+  target_loss_ratio: 0.65
+  rate_version: "R-2027.A"
+  effective_from: 2027-01-01
+  approved_by: "Head of Pricing"
+
+rules:
+  version: 0.2.0
+  items:
+    - id: PR1_RATE_ADEQUACY
+      name: Current premium below indicated
+      metric: adequacy_ratio
+      operator: lt
+      threshold: 0.95
+      on_breach: reprice
+      rationale: Below 95% rate adequacy the policy is repriced at renewal rather than renewed on current terms.
+    - id: PR2_CHANGE_APPROVAL
+      name: Large rate movement needs approval
+      metric: indicated_change
+      operator: gte
+      threshold: 0.15
+      on_breach: actuarial_and_uw_approval
+      rationale: Movements above 15% require actuarial and underwriting approval before the rate is applied.

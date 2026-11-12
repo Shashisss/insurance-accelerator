@@ -45,3 +45,29 @@ def test_property_workbench_still_runs():
     labels = [m.label for m in at.metric]
     assert "Risk score" in labels
     assert any(b.label == "Property" and b.value.startswith("PR001") for b in at.selectbox)
+
+
+import pytest
+
+PAGES = {
+    "claims": str(ROOT / "pages" / "2_Claims_reserving.py"),
+    "pricing": str(ROOT / "pages" / "3_Pricing_adequacy.py"),
+}
+
+
+@pytest.mark.parametrize("page", list(PAGES))
+def test_use_case_pages_render(page):
+    at = AppTest.from_file(PAGES[page], default_timeout=120).run()
+    assert not at.exception, [e.value for e in at.exception]
+    assert at.metric, "each page must lead with its numbers"
+
+
+def test_claims_page_shows_the_adverse_alert():
+    at = AppTest.from_file(PAGES["claims"], default_timeout=120).run()
+    assert any("actuarial review" in e.value.lower() for e in at.error)
+
+
+def test_pricing_page_matches_the_deck():
+    at = AppTest.from_file(PAGES["pricing"], default_timeout=120).run()
+    metrics = {m.label: m.value for m in at.metric}
+    assert metrics["Indicated premium"] == "₹12.79L"

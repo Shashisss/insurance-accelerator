@@ -108,3 +108,32 @@ def test_every_answer_passes_its_own_guardrail(box):
         answer = ask(question, box, use_model=False)
         allowed = fact_sheet(answer.tool, answer.result)
         assert unsupported_numbers(answer.text, allowed) == [], question
+
+
+# --- the other two use cases ---------------------------------------------
+def test_routes_reserving_and_pricing_questions(box):
+    assert plan("did reserves develop adversely?", box)[0] == "reserve_development"
+    assert plan("what is the indicated premium?", box)[0] == "pricing_indication"
+    assert plan("how much IBNR is there?", box)[0] == "reserve_development"
+
+
+def test_reserving_answer_cites_the_decomposition(box):
+    answer = ask("did reserves develop adversely?", box, use_model=False)
+    assert "20.00" in answer.text and "23.00" in answer.text
+    assert "15.0%" in answer.text
+    assert "Selection change" in answer.text
+    assert "actuarial review" in answer.text.lower()
+
+
+def test_pricing_answer_cites_the_indication(box):
+    answer = ask("what is the indicated premium?", box, use_model=False)
+    assert "1,279,385" in answer.text
+    assert "27.9%" in answer.text
+    assert "81" not in answer.text.split("loss ratio")[0][:0]  # sanity: no stray figures
+
+
+def test_new_answers_pass_the_guardrail(box):
+    for question in ["did reserves develop adversely?", "what is the indicated premium?"]:
+        answer = ask(question, box, use_model=False)
+        allowed = fact_sheet(answer.tool, answer.result)
+        assert unsupported_numbers(answer.text, allowed) == [], question

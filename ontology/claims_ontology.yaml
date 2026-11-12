@@ -1,0 +1,76 @@
+# Claims reserving ontology — motor portfolio, two valuations.
+#
+# The point of the use case is not chain-ladder arithmetic; it is that the
+# factor selection, the reserves and the valuation date are all *named,
+# versioned objects* that the reserve movement can be attributed to.
+version: 0.1.0
+domain: claims-reserving
+
+entities:
+  Claim:
+    key: claim_id
+    definition: A notified motor claim with paid and case-reserve history at each valuation.
+    attributes:
+      claim_id: {type: string, required: true, definition: Claim identifier.}
+      accident_date: {type: date, required: true, definition: Date of loss — drives the development band.}
+      reported_date: {type: date, required: true, definition: Date notified.}
+      vehicle_id: {type: string, required: true, definition: FK to Vehicle (shared with the fleet model).}
+      policy_id: {type: string, required: true, definition: Policy in force at the accident date.}
+      segment: {type: string, required: true, definition: Own damage / third-party property / third-party injury.}
+      peril: {type: string, required: true, definition: Cause of loss.}
+
+  ValuationPoint:
+    key: valuation_id
+    definition: A date at which the book is valued, with its approved factor selection.
+    attributes:
+      valuation_id: {type: string, required: true, definition: e.g. 2026-12.}
+      as_of: {type: date, required: true, definition: Valuation date.}
+      factor_version: {type: string, required: true, definition: Approved selection in force.}
+      approved_by: {type: string, required: true, definition: Actuarial sign-off.}
+
+  Reserve:
+    key: reserve_id
+    definition: Paid and case reserve for a claim at a valuation.
+    attributes:
+      reserve_id: {type: string, required: true, definition: reserve_id = claim + valuation.}
+      claim_id: {type: string, required: true, definition: FK to Claim.}
+      valuation_id: {type: string, required: true, definition: FK to ValuationPoint.}
+      paid: {type: float, required: true, definition: Cumulative payments.}
+      case: {type: float, required: true, definition: Case reserve held.}
+
+relationships:
+  - {name: VALUED_AT, from: Claim, to: Reserve, cardinality: one-to-many, definition: Claim has a reserve at each valuation.}
+  - {name: USES_SELECTION, from: ValuationPoint, to: Reserve, cardinality: one-to-many, definition: The selection applied at that valuation.}
+
+valuations:
+  - {valuation_id: "2026-12", as_of: 2026-12-31, factor_version: "F-2026.12", approved_by: "Chief Actuary", label: "Baseline"}
+  - {valuation_id: "2027-03", as_of: 2027-03-31, factor_version: "F-2027.03", approved_by: "Chief Actuary", label: "Revised"}
+
+# ultimate / incurred, by maturity band (<3, <6, <9, <12, 12+) months
+factors:
+  "F-2026.12":
+    Own damage: [1.18, 1.08, 1.03, 1.01, 1.00]
+    Third party property: [1.42, 1.24, 1.10, 1.04, 1.00]
+    Third party injury: [1.88, 1.55, 1.28, 1.12, 1.00]
+  "F-2027.03":
+    Own damage: [1.16, 1.07, 1.02, 1.01, 1.00]
+    Third party property: [1.48, 1.28, 1.12, 1.05, 1.00]
+    Third party injury: [2.05, 1.72, 1.44, 1.26, 1.02]
+
+rules:
+  version: 0.1.0
+  items:
+    - id: CR1_DEVELOPMENT_THRESHOLD
+      name: Adverse development above tolerance
+      metric: ultimate_change_pct
+      operator: gte
+      threshold: 0.10
+      on_breach: actuarial_review
+      rationale: Ultimate movement above 10% between valuations is flagged for actuarial review before sign-off.
+    - id: CR2_CASE_COVERAGE
+      name: Case reserves thin relative to incurred
+      metric: case_to_incurred
+      operator: lt
+      threshold: 0.40
+      on_breach: reserve_review
+      rationale: If case reserves fall below 40% of incurred while claims stay open, the case basis is re-examined.

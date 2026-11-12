@@ -134,6 +134,28 @@ from v1 to v2.
 API: `/fleet/policies`, `/fleet/policies/{id}/assessment`, `/fleet/groups/{id}`,
 `/fleet/impact-trace`.
 
+## Three use cases, one engine
+
+| Use case | What it decides | What is new |
+| --- | --- | --- |
+| **Commercial property underwriting** | score, band, decision per property (`property_app.py`) | none — the original |
+| **Fleet renewal** (`streamlit_app.py`, the entry page) | refer + group review at renewal | time-valid vehicle↔policy edges, group above the entity, governed metric versions |
+| **Claims reserving & IBNR** (`pages/2_Claims_reserving.py`) | flag adverse development for actuarial review | two valuations, approved factor selections, movement decomposed into three drivers |
+| **Pricing & rate adequacy** (`pages/3_Pricing_adequacy.py`) | indicated premium and the approval it needs | versioned assumptions, target loss ratio, sensitivity per assumption |
+
+Reserving reproduces the framework deck: ultimate **₹20.00 Cr → ₹23.00 Cr (+15.0%)** between the
+Dec 2026 and Mar 2027 valuations, decomposed into incurred movement (+₹4.21 Cr), selection change
+(+₹2.05 Cr) and maturity (−₹3.27 Cr), reconciling to zero.
+
+Pricing reproduces its deck too: premium **₹10,00,000**, claims **₹7,20,000**, trends +10%
+severity / +5% frequency, target ratio 65% → projected claims **₹8,31,600**, projected ratio
+**83.16%**, indicated premium **₹12,79,385 (+27.94%)**, adequacy **78.16%**.
+
+```bash
+python scripts/build_claims_data.py     # regenerates the 60-claim triangle
+streamlit run streamlit_app.py          # fleet page; other use cases in the sidebar
+```
+
 ## AI layer (optional model, always tools)
 
 `src/iaa/assistant.py` answers questions by calling the same functions the page and the API use —

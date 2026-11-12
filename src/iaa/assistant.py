@@ -87,6 +87,25 @@ class Toolbox:
                 {"as_of": "YYYY-MM-DD (optional)"},
                 self.impact_trace,
             ),
+            "reserve_development": Tool(
+                "reserve_development",
+                "Claims reserving: ultimate movement between the two valuations, its drivers, IBNR and the alert.",
+                {},
+                self.reserve_development,
+            ),
+            "reserve_position": Tool(
+                "reserve_position",
+                "Reserve position at one valuation: paid, case, incurred, ultimate, IBNR, by segment.",
+                {"valuation_id": "2026-12 | 2027-03"},
+                self.reserve_position,
+            ),
+            "pricing_indication": Tool(
+                "pricing_indication",
+                "Rate adequacy: projected claims, loss ratio, indicated premium and the sensitivity of each assumption.",
+                {"severity_trend": "float (optional)", "frequency_trend": "float (optional)",
+                 "target_loss_ratio": "float (optional)"},
+                self.pricing_indication,
+            ),
         }
 
     # --- implementations --------------------------------------------
@@ -138,6 +157,35 @@ class Toolbox:
 
     def impact_trace(self, as_of: str | date | None = None) -> dict:
         return impact_trace(self.store, self.registry, _day(as_of), "v1", "v2")
+
+    def reserve_position(self, valuation_id: str = "2027-03") -> dict:
+        from .reserving import load_book, position
+
+        book = load_book()
+        return position(book, valuation_id)
+
+    def reserve_development(self) -> dict:
+        from .reserving import assess, load_book
+
+        result = assess(load_book())
+        return {
+            "baseline": {k: result["baseline"][k] for k in ("valuation_id", "ultimate", "ibnr", "incurred", "paid", "case")},
+            "revised": {k: result["revised"][k] for k in ("valuation_id", "ultimate", "ibnr", "incurred", "paid", "case")},
+            "change": result["change"],
+            "change_pct": result["change_pct"],
+            "threshold": result["threshold"],
+            "alert": result["alert"],
+            "drivers": result["drivers"],
+            "decision": result["decision"],
+        }
+
+    def pricing_indication(self, severity_trend: float | None = None,
+                           frequency_trend: float | None = None,
+                           target_loss_ratio: float | None = None) -> dict:
+        from .pricing import indication
+
+        return indication(severity_trend=severity_trend, frequency_trend=frequency_trend,
+                          target_loss_ratio=target_loss_ratio)
 
     # --- plumbing ----------------------------------------------------
     def call(self, name: str, **args: Any) -> dict:
@@ -198,6 +246,10 @@ def plan(question: str, toolbox: Toolbox) -> tuple[str, dict]:
 
     if vehicle:
         return "vehicle_history", {"vehicle_id": vehicle.group(0).upper()}
+    if any(w in q for w in ("reserve", "ibnr", "ultimate", "development", "adverse", "sign-off")):
+        return "reserve_development", {}
+    if any(w in q for w in ("premium", "price", "pricing", "rate", "indicated", "adequacy")):
+        return "pricing_indication", {}
     if any(w in q for w in ("impact", "definition", "v1", "v2", "alae", "what changed", "trace")):
         return "impact_trace", {}
     if any(w in q for w in ("transfer", "moved", "left the policy", "migrat")):
@@ -220,6 +272,10 @@ def _money(value: float) -> str:
 
 def _pct(value: float) -> str:
     return f"{value:.1%}"
+
+
+def _cr(value: float) -> str:
+    return f"{value / 1e7:.2f}"
 
 
 def answer_from_tool(tool: str, result: dict) -> str:
@@ -291,6 +347,35 @@ def answer_from_tool(tool: str, result: dict) -> str:
         )
         return (f"Moving the loss ratio definition {result['from_version']} → {result['to_version']} "
                 f"changes {result['changed']} of {result['total']} decisions. {detail}.")
+
+    if tool == "reserve_development":
+        base, rev = result["baseline"], result["revised"]
+        drivers = "; ".join(f"{d['driver']} {d['impact']/1e7:+.2f} Cr" for d in result["drivers"])
+        return (
+            f"Ultimate moved from {_cr(base['ultimate'])} Cr at {base['valuation_id']} to "
+            f"{_cr(rev['ultimate'])} Cr at {rev['valuation_id']} — {result['change_pct']:+.1%}, "
+            f"{'above' if result['alert'] else 'within'} the {result['threshold']:.0%} tolerance.\n"
+            f"Drivers: {drivers}.\n"
+            f"IBNR is {_cr(rev['ibnr'])} Cr at the revised valuation. {result['decision']}."
+        )
+
+    if tool == "reserve_position":
+        return (
+            f"{result['valuation_id']}: paid {_cr(result['paid'])} Cr, case {_cr(result['case'])} Cr, "
+            f"incurred {_cr(result['incurred'])} Cr, ultimate {_cr(result['ultimate'])} Cr, "
+            f"IBNR {_cr(result['ibnr'])} Cr across {result['claims']} claims."
+        )
+
+    if tool == "pricing_indication":
+        return (
+            f"Current premium {_money(result['current_premium'])} on claims of {_money(result['incurred_claims'])} "
+            f"— a {result['current_ratio']:.1%} loss ratio. Trending claims by "
+            f"{result['severity_trend']:+.0%} severity and {result['frequency_trend']:+.0%} frequency gives "
+            f"{_money(result['projected_claims'])}, a {result['projected_ratio']:.1%} projected ratio. "
+            f"At a {result['target_loss_ratio']:.0%} target the indicated premium is "
+            f"{_money(result['indicated_premium'])} ({result['indicated_change']:+.1%}); "
+            f"rate adequacy {result['adequacy_ratio']:.1%}. {result['decision']}."
+        )
 
     return json.dumps(result, default=str)
 
