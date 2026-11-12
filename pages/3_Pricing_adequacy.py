@@ -15,7 +15,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 import pandas as pd
 import streamlit as st
 
+from iaa.assistant import Toolbox
 from iaa.pricing import assess, indication, load_inputs, sensitivity
+from iaa.ui_ask import render_ask_panel
 
 st.set_page_config(page_title="Pricing — ABC Express P205", page_icon="💷", layout="wide")
 
@@ -48,6 +50,18 @@ st.title("Pricing: from exposure to an indicated rate")
 st.caption(
     f"{result['policy_id']} · {result['exposure_vehicles']} vehicles · rate version {result['rate_version']} · "
     f"effective {result['effective_from']} · approved by {result['approved_by']}"
+)
+
+render_ask_panel(
+    Toolbox(),
+    [
+        "What is the indicated premium?",
+        "Why is the price going up?",
+        "What if severity is flat?",
+        "How adequate is the current rate?",
+    ],
+    key_prefix="pricing",
+    title="Ask the pricing book a question",
 )
 
 c1, c2, c3, c4 = st.columns(4)

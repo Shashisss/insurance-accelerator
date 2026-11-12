@@ -93,6 +93,12 @@ class Toolbox:
                 {},
                 self.reserve_development,
             ),
+            "reserve_movements": Tool(
+                "reserve_movements",
+                "The claims whose ultimate moved most between the two valuations.",
+                {"limit": "int (optional)"},
+                self.reserve_movements,
+            ),
             "reserve_position": Tool(
                 "reserve_position",
                 "Reserve position at one valuation: paid, case, incurred, ultimate, IBNR, by segment.",
@@ -163,6 +169,12 @@ class Toolbox:
 
         book = load_book()
         return position(book, valuation_id)
+
+    def reserve_movements(self, limit: int = 5) -> dict:
+        from .reserving import load_book, top_movements
+
+        rows = top_movements(load_book(), limit=int(limit or 5))
+        return {"count": len(rows), "claims": rows}
 
     def reserve_development(self) -> dict:
         from .reserving import assess, load_book
@@ -246,10 +258,19 @@ def plan(question: str, toolbox: Toolbox) -> tuple[str, dict]:
 
     if vehicle:
         return "vehicle_history", {"vehicle_id": vehicle.group(0).upper()}
+    if any(w in q for w in ("moved most", "largest", "biggest", "top claims", "which claims")):
+        return "reserve_movements", {}
     if any(w in q for w in ("reserve", "ibnr", "ultimate", "development", "adverse", "sign-off")):
         return "reserve_development", {}
-    if any(w in q for w in ("premium", "price", "pricing", "rate", "indicated", "adequacy")):
-        return "pricing_indication", {}
+    trend_question = (("severity" in q or "frequency" in q)
+                      and any(w in q for w in ("trend", "flat", "zero", "what if", "without")))
+    if trend_question or any(w in q for w in ("premium", "price", "pricing", "rate", "indicated", "adequacy", "adequate")):
+        args: dict[str, Any] = {}
+        if "severity" in q and any(w in q for w in ("flat", "no ", "zero", "without")):
+            args["severity_trend"] = 0.0
+        if "frequency" in q and any(w in q for w in ("flat", "no ", "zero", "without")):
+            args["frequency_trend"] = 0.0
+        return "pricing_indication", args
     if any(w in q for w in ("impact", "definition", "v1", "v2", "alae", "what changed", "trace")):
         return "impact_trace", {}
     if any(w in q for w in ("transfer", "moved", "left the policy", "migrat")):
@@ -358,6 +379,16 @@ def answer_from_tool(tool: str, result: dict) -> str:
             f"Drivers: {drivers}.\n"
             f"IBNR is {_cr(rev['ibnr'])} Cr at the revised valuation. {result['decision']}."
         )
+
+    if tool == "reserve_movements":
+        rows = result["claims"]
+        lines = [f"The {len(rows)} claims that moved most:"]
+        for r in rows:
+            lines.append(
+                f"· {r['claim_id']} ({r['segment']}) {_cr(r['ultimate_before'])} → "
+                f"{_cr(r['ultimate_after'])} Cr, {r['change_pct']:+.1%}"
+            )
+        return "\n".join(lines)
 
     if tool == "reserve_position":
         return (

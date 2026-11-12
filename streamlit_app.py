@@ -18,7 +18,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 import pandas as pd
 import streamlit as st
 
-from iaa.assistant import Toolbox, ask, llm_configured
+from iaa.assistant import Toolbox, llm_configured
+from iaa.ui_ask import render_ask_panel
 from iaa.fleet import (
     MetricRegistry,
     assess_policy,
@@ -72,65 +73,17 @@ st.caption(
 )
 
 # ---------------------------------------------------------------- ask (AI layer)
-with st.container(border=True):
-    st.markdown("### Ask this book a question")
-    _mode = "model" if llm_configured() else "deterministic (no model configured)"
-    st.caption(
-        "Answered by calling the same functions that drew this page — the assistant routes and phrases, "
-        "it never calculates, and any figure not returned by a tool is rejected. "
-        f"Mode: **{_mode}**."
-    )
-
-    toolbox = Toolbox(store, registry)
-
-    def _run(question: str) -> None:
-        with st.spinner("Routing to tools…"):
-            try:
-                answer = ask(question, toolbox)
-                st.session_state["ask_answer"] = answer.as_dict()
-                st.session_state["ask_question"] = question
-            except Exception as exc:  # keep the demo alive
-                st.session_state["ask_answer"] = {
-                    "text": f"Error: {exc}", "tool": "-", "args": {}, "mode": _mode,
-                    "guardrail": None, "trace": [],
-                }
-                st.session_state["ask_question"] = question
-
-    st.markdown("**Try one:**")
-    suggestions = [
+render_ask_panel(
+    Toolbox(store, registry),
+    [
         "Why is P205 referred?",
         "What happened to V041?",
         "Which vehicles moved?",
         "How big is the group?",
         "What changes if we use the v1 definition?",
-    ]
-    scols = st.columns(len(suggestions))
-    for col, q in zip(scols, suggestions):
-        if col.button(q, key=f"sugg::{q}"):
-            _run(q)
-
-    with st.form("ask_form", clear_on_submit=False, border=False):
-        question = st.text_input(
-            "Or ask your own",
-            placeholder="e.g. why is P205 referred?",
-            label_visibility="collapsed",
-        )
-        if st.form_submit_button("Ask", type="primary") and question.strip():
-            _run(question.strip())
-
-    stored = st.session_state.get("ask_answer")
-    if stored:
-        asked = st.session_state.get("ask_question", "")
-        if asked:
-            st.markdown(f"**Q:** {asked}")
-        st.success(stored["text"])
-        if stored.get("guardrail"):
-            st.warning(f"Guardrail: {stored['guardrail']}")
-        with st.expander("How this was produced — tool, arguments, verification"):
-            st.markdown(f"**Tool called:** `{stored['tool']}`  \n**Arguments:** `{stored['args']}`")
-            st.dataframe(pd.DataFrame(stored["trace"]), hide_index=True, width="stretch")
-            if stored.get("detail"):
-                st.json(stored["detail"])
+    ],
+    key_prefix="fleet",
+)
 
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Group fleet", f"{group_m['vehicles']} vehicles")

@@ -15,7 +15,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 import pandas as pd
 import streamlit as st
 
+from iaa.assistant import Toolbox
 from iaa.reserving import assess, load_book, position
+from iaa.ui_ask import render_ask_panel
 
 st.set_page_config(page_title="Claims reserving — ABC Insurance", page_icon="📐", layout="wide")
 
@@ -43,6 +45,18 @@ st.title("Claims reserving: from 60 claims to a defended IBNR")
 st.caption(
     f"Motor portfolio · baseline {base['as_of']} · revised {rev['as_of']} · "
     f"factor selections {base['factor_version']} → {rev['factor_version']}"
+)
+
+render_ask_panel(
+    Toolbox(),
+    [
+        "Did reserves develop adversely?",
+        "How much IBNR is there?",
+        "What moved the ultimate?",
+        "Which claims moved most?",
+    ],
+    key_prefix="claims",
+    title="Ask the reserving book a question",
 )
 
 c1, c2, c3, c4 = st.columns(4)

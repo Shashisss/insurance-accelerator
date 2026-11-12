@@ -34,7 +34,7 @@ def test_fleet_page_follows_the_selected_policy():
 
 def test_assistant_answers_on_the_page():
     at = AppTest.from_file(APP, default_timeout=120).run()
-    at.button(key="sugg::Why is P205 referred?").click().run()
+    at.button(key="fleet::sugg::Why is P205 referred?").click().run()
     assert not at.exception
     assert any("Refer for senior review" in s.value for s in at.success)
 
@@ -71,3 +71,15 @@ def test_pricing_page_matches_the_deck():
     at = AppTest.from_file(PAGES["pricing"], default_timeout=120).run()
     metrics = {m.label: m.value for m in at.metric}
     assert metrics["Indicated premium"] == "₹12.79L"
+
+
+@pytest.mark.parametrize("page,prefix,question", [
+    ("claims", "claims", "Did reserves develop adversely?"),
+    ("pricing", "pricing", "What is the indicated premium?"),
+])
+def test_every_use_case_has_the_ask_panel(page, prefix, question):
+    at = AppTest.from_file(PAGES[page], default_timeout=120).run()
+    assert not at.exception, [e.value for e in at.exception]
+    at.button(key=f"{prefix}::sugg::{question}").click().run()
+    assert not at.exception
+    assert at.success, "the ask panel must return an answer"
