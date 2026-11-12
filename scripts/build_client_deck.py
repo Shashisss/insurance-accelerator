@@ -418,6 +418,64 @@ text(s, Inches(0.55), Inches(5.85), Inches(12.2), Inches(0.9),
      size=10, color=MUTED, spacing=1.3)
 
 # ==========================================================================
+# 7 — inside the semantic layer
+# ==========================================================================
+s = prs.slides.add_slide(BLANK)
+frame(s, "Inside the layer", "What sits inside — and where the AI is allowed to stand",
+      "Definitions on the left, evidence on the right. The graph holds the facts, the trace holds the reasoning.", 7)
+
+# sources
+card(s, Inches(0.55), Inches(2.05), Inches(2.1), Inches(3.2), fill=WHITE, line=HAIR)
+text(s, Inches(0.72), Inches(2.18), Inches(1.8), Inches(0.25), "SOURCES", size=9, bold=True, color=MUTED)
+for i, name in enumerate(["Policy admin", "Claims", "Billing", "UW desk", "Documents"]):
+    text(s, Inches(0.72), Inches(2.52) + i * Inches(0.5), Inches(1.85), Inches(0.3), "·  " + name, size=10, color=MUTED)
+
+shape(s, MSO_SHAPE.RIGHT_ARROW, Inches(2.75), Inches(3.45), Inches(0.4), Inches(0.3), fill=ACCENT)
+text(s, Inches(2.30), Inches(3.85), Inches(1.35), Inches(0.4), "map +\nvalidate", size=8, color=MUTED, align=PP_ALIGN.CENTER)
+
+# the layer container
+card(s, Inches(3.25), Inches(1.95), Inches(6.6), Inches(3.45), fill=CARD, line=ACCENT)
+text(s, Inches(3.45), Inches(2.05), Inches(4.0), Inches(0.25), "SEMANTIC LAYER", size=9.5, bold=True, color=ACCENT)
+
+inner = [
+    ("Ontology repo", "entities · keys · edges", 3.45, 2.40),
+    ("Graph store", "instances + dated edges", 5.55, 2.40),
+    ("Metric layer", "definitions · versions", 7.65, 2.40),
+    ("Rules service", "thresholds · decisions", 3.45, 3.35),
+    ("Evidence store", "inputs · findings · decisions", 5.55, 3.35),
+    ("Tool surface", "read-only functions", 7.65, 3.35),
+]
+for name, sub, x, y in inner:
+    shape(s, MSO_SHAPE.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(1.95), Inches(0.78),
+          fill=WHITE, line=HAIR)
+    text(s, Inches(x + 0.10), Inches(y + 0.10), Inches(1.75), Inches(0.25), name, size=10, bold=True, color=INK)
+    text(s, Inches(x + 0.10), Inches(y + 0.38), Inches(1.75), Inches(0.35), sub, size=8.5, color=MUTED)
+
+text(s, Inches(3.45), Inches(4.35), Inches(6.2), Inches(0.9),
+     "History lives here — every vehicle↔policy link carries valid_from / valid_to.\n"
+     "Trace lives here too — each decision stores the inputs, findings and the rule version used.",
+     size=10, color=MUTED, spacing=1.25)
+
+shape(s, MSO_SHAPE.RIGHT_ARROW, Inches(9.95), Inches(3.45), Inches(0.4), Inches(0.3), fill=ACCENT)
+text(s, Inches(9.85), Inches(3.80), Inches(0.6), Inches(0.25), "read", size=8, color=MUTED, align=PP_ALIGN.CENTER)
+
+# consumers
+card(s, Inches(10.45), Inches(2.05), Inches(2.3), Inches(1.9), fill=WHITE, line=HAIR)
+text(s, Inches(10.62), Inches(2.18), Inches(2.0), Inches(0.25), "CONSUMERS", size=9, bold=True, color=MUTED)
+for i, name in enumerate(["Workbench", "API", "BI"]):
+    text(s, Inches(10.62), Inches(2.52) + i * Inches(0.5), Inches(2.0), Inches(0.3), "·  " + name, size=10, color=MUTED)
+
+# AI band
+card(s, Inches(10.45), Inches(4.05), Inches(2.3), Inches(1.35), fill=ACCENT)
+text(s, Inches(10.62), Inches(4.18), Inches(2.0), Inches(0.25), "AI / AGENT", size=9, bold=True, color=WHITE)
+text(s, Inches(10.62), Inches(4.45), Inches(2.0), Inches(0.85),
+     "calls tools\nnever writes\nnever computes", size=9, color=WHITE, spacing=1.2)
+
+band(s, Inches(5.75), Inches(0.95), "The boundary",
+     "The AI layer sits outside the box and only reaches it through the tool surface — read-only. "
+     "It can route a question and phrase an answer; the numbers still come from the rules and the metrics.")
+
+# ==========================================================================
 # 7 — paired stack, not a table
 # ==========================================================================
 s = prs.slides.add_slide(BLANK)
@@ -450,36 +508,37 @@ text(s, Inches(10.15), Inches(2.35), Inches(2.6), Inches(3.4),
      size=11, color=MUTED, spacing=1.35)
 
 # ==========================================================================
-# 8 — outcomes as tiles
+# 9 — business outcomes, generic
 # ==========================================================================
 s = prs.slides.add_slide(BLANK)
-frame(s, "Business outcomes", "Where the value lands",
-      "Five value streams, one spine. Each KPI is a hypothesis until we baseline it on your book.", 8)
+frame(s, "Business outcomes", "What any business gets, whichever domain you start in",
+      "The same five outcomes show up wherever decisions are made across systems and time.", 9)
 
 outcomes = [
-    ("RENEWAL", MSO_SHAPE.OVAL, "Policy + group + transfer\nhistory at renewal"),
-    ("RESERVING", MSO_SHAPE.DIAMOND, "Adverse development\nbroken into drivers"),
-    ("PRICING", MSO_SHAPE.RECTANGLE, "Indication from\nversioned assumptions"),
-    ("ONBOARDING", MSO_SHAPE.ISOSCELES_TRIANGLE, "New source maps to\ncanonical entities"),
-    ("GOVERNANCE", MSO_SHAPE.HEXAGON, "One definition,\nwith impact trace"),
+    ("FASTER", MSO_SHAPE.OVAL, "Decisions in seconds,\nnot days of chasing", "renewal pack assembled"),
+    ("WIDER", MSO_SHAPE.DIAMOND, "Exposure across entities\nand time becomes visible", "150 vehicles, 40 transfers"),
+    ("PROVABLE", MSO_SHAPE.RECTANGLE, "Every number traces to\na rule and a version", "60% = 2,16,000 / 3,60,000"),
+    ("REUSABLE", MSO_SHAPE.ISOSCELES_TRIANGLE, "New use case, new rules —\nsame spine", "3 decisions, 1 model"),
+    ("CHEAPER", MSO_SHAPE.HEXAGON, "New source maps to the\nmodel, not to code", "16-column extract"),
 ]
 x = Inches(0.55)
-for head, kind, body in outcomes:
-    card(s, x, Inches(2.00), Inches(2.32), Inches(2.75))
-    shape(s, kind, x + Inches(0.90), Inches(2.25), Inches(0.55), Inches(0.55), fill=ACCENT)
-    text(s, x + Inches(0.15), Inches(3.05), Inches(2.02), Inches(0.25), head, size=9.5, bold=True, color=ACCENT, align=PP_ALIGN.CENTER)
-    text(s, x + Inches(0.15), Inches(3.42), Inches(2.02), Inches(0.9), body, size=10.5, color=MUTED, align=PP_ALIGN.CENTER, spacing=1.25)
+for head, kind, body, example in outcomes:
+    card(s, x, Inches(1.95), Inches(2.32), Inches(2.95))
+    shape(s, kind, x + Inches(0.90), Inches(2.18), Inches(0.55), Inches(0.55), fill=ACCENT)
+    text(s, x + Inches(0.15), Inches(2.95), Inches(2.02), Inches(0.25), head, size=9.5, bold=True, color=ACCENT, align=PP_ALIGN.CENTER)
+    text(s, x + Inches(0.15), Inches(3.28), Inches(2.02), Inches(0.8), body, size=10.5, color=INK, align=PP_ALIGN.CENTER, spacing=1.25)
+    text(s, x + Inches(0.15), Inches(4.12), Inches(2.02), Inches(0.5), example, size=8.5, color=MUTED, align=PP_ALIGN.CENTER, spacing=1.15)
     x += Inches(2.42)
 
-band(s, Inches(5.05), Inches(0.95), "The honest part",
-     "No percentages in this deck. Each target needs a baseline, an owner and a measurement window — that is what a 90-day pilot buys.")
+band(s, Inches(5.15), Inches(0.95), "The honest part",
+     "No percentages here. Each outcome needs a baseline, an owner and a measurement window on your book — that is what a 90-day pilot buys.")
 
 # ==========================================================================
 # 9 — roadmap as a timeline
 # ==========================================================================
 s = prs.slides.add_slide(BLANK)
 frame(s, "Roadmap", "90 days to prove, three quarters to scale",
-      "One value stream first. The spine doesn't change as scope grows.", 9)
+      "One value stream first. The spine doesn't change as scope grows.", 10)
 
 phases = [
     ("0–90 DAYS", "Prove", ["one use case", "six entities", "88 tests"], ACCENT),

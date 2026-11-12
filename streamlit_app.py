@@ -20,7 +20,7 @@ from iaa.screen_claims import render as render_claims
 from iaa.screen_fleet import render as render_fleet
 from iaa.screen_pricing import render as render_pricing
 
-st.set_page_config(page_title="Insurance Semantic Layer", page_icon="🏢", layout="wide",
+st.set_page_config(page_title="Insurance Semantic Layer · one model, three decisions", page_icon="🏢", layout="wide",
                    initial_sidebar_state="expanded")
 
 SCREENS = {
@@ -30,7 +30,10 @@ SCREENS = {
 }
 
 with st.sidebar:
-    st.markdown("### Use case")
+    st.markdown("### Insurance Semantic Layer")
+    st.caption("One model · three decisions · evidence under every number")
+    st.divider()
+    st.markdown("**Use case**")
     choice = st.radio(
         "Use case",
         list(SCREENS),
