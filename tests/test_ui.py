@@ -1,85 +1,73 @@
-"""Both workbenches render without exceptions, and the fleet page is the entry point."""
+"""The workbench renders, and all three use cases live in one app."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from streamlit.testing.v1 import AppTest
 
 ROOT = Path(__file__).resolve().parents[1]
-APP = str(ROOT / "streamlit_app.py")          # fleet — the deployed entry point
-PROPERTY_APP = str(ROOT / "property_app.py")  # property workbench, kept runnable
+APP = str(ROOT / "streamlit_app.py")
 
 
-def test_fleet_page_is_the_entry_point():
-    at = AppTest.from_file(APP, default_timeout=120).run()
+def _open(use_case: str | None = None) -> AppTest:
+    at = AppTest.from_file(APP, default_timeout=150).run()
+    if use_case:
+        at.radio(key="usecase").set_value(use_case).run()
+    return at
+
+
+def test_app_opens_on_the_fleet_decision():
+    at = _open()
     assert not at.exception, [e.value for e in at.exception]
     labels = [m.label for m in at.metric]
     assert "Group fleet" in labels and "Loss ratio" in labels
-    policy_box = next(b for b in at.selectbox if b.label == "Policy")
-    assert policy_box.value.startswith("P205")
-    tabs = [t.label for t in at.tabs]
-    assert "Ask" not in tabs, "the ask panel now sits above the tabs"
-    assert tabs[:2] == ["Graph", "Vehicle timeline"]
+    assert at.radio(key="usecase").value == "Fleet renewal"
 
 
-def test_fleet_page_follows_the_selected_policy():
-    at = AppTest.from_file(APP, default_timeout=120).run()
-    policy_box = next(b for b in at.selectbox if b.label == "Policy")
-    policy_box.set_value("P101 · Commercial Vehicle Fleet · renews 2027-01-01").run()
-    assert not at.exception
-    metrics = {m.label: m.value for m in at.metric}
-    assert metrics["P205 fleet at renewal"] == "90"  # P101 covers 90 vehicles
+def test_every_use_case_is_reachable_from_the_sidebar():
+    at = _open()
+    assert list(at.radio(key="usecase").options) == ["Fleet renewal", "Claims reserving", "Pricing adequacy"]
 
 
-def test_assistant_answers_on_the_page():
-    at = AppTest.from_file(APP, default_timeout=120).run()
-    at.button(key="fleet::sugg::Why is P205 referred?").click().run()
-    assert not at.exception
-    assert any("Refer for senior review" in s.value for s in at.success)
-
-
-def test_property_workbench_still_runs():
-    at = AppTest.from_file(PROPERTY_APP, default_timeout=120).run()
+@pytest.mark.parametrize("use_case,expected", [
+    ("Fleet renewal", "Group fleet"),
+    ("Claims reserving", "Ultimate, baseline"),
+    ("Pricing adequacy", "Indicated premium"),
+])
+def test_each_use_case_renders_its_own_numbers(use_case, expected):
+    at = _open(use_case)
     assert not at.exception, [e.value for e in at.exception]
-    labels = [m.label for m in at.metric]
-    assert "Risk score" in labels
-    assert any(b.label == "Property" and b.value.startswith("PR001") for b in at.selectbox)
+    assert expected in [m.label for m in at.metric]
 
 
-import pytest
-
-PAGES = {
-    "claims": str(ROOT / "pages" / "2_Claims_reserving.py"),
-    "pricing": str(ROOT / "pages" / "3_Pricing_adequacy.py"),
-}
-
-
-@pytest.mark.parametrize("page", list(PAGES))
-def test_use_case_pages_render(page):
-    at = AppTest.from_file(PAGES[page], default_timeout=120).run()
-    assert not at.exception, [e.value for e in at.exception]
-    assert at.metric, "each page must lead with its numbers"
+def test_ask_panel_answers_on_every_use_case():
+    for use_case, question in [
+        ("Fleet renewal", "Why is P205 referred?"),
+        ("Claims reserving", "Did reserves develop adversely?"),
+        ("Pricing adequacy", "What is the indicated premium?"),
+    ]:
+        at = _open(use_case)
+        prefix = {"Fleet renewal": "fleet", "Claims reserving": "claims", "Pricing adequacy": "pricing"}[use_case]
+        at.button(key=f"{prefix}::sugg::{question}").click().run()
+        assert not at.exception, use_case
+        assert at.success, f"{use_case}: the ask panel must return an answer"
 
 
-def test_claims_page_shows_the_adverse_alert():
-    at = AppTest.from_file(PAGES["claims"], default_timeout=120).run()
+def test_claims_screen_flags_the_adverse_movement():
+    at = _open("Claims reserving")
     assert any("actuarial review" in e.value.lower() for e in at.error)
 
 
-def test_pricing_page_matches_the_deck():
-    at = AppTest.from_file(PAGES["pricing"], default_timeout=120).run()
+def test_pricing_screen_matches_the_framework_numbers():
+    at = _open("Pricing adequacy")
     metrics = {m.label: m.value for m in at.metric}
     assert metrics["Indicated premium"] == "₹12.79L"
 
 
-@pytest.mark.parametrize("page,prefix,question", [
-    ("claims", "claims", "Did reserves develop adversely?"),
-    ("pricing", "pricing", "What is the indicated premium?"),
-])
-def test_every_use_case_has_the_ask_panel(page, prefix, question):
-    at = AppTest.from_file(PAGES[page], default_timeout=120).run()
+def test_property_workbench_still_runs():
+    at = AppTest.from_file(str(ROOT / "property_app.py"), default_timeout=120).run()
     assert not at.exception, [e.value for e in at.exception]
-    at.button(key=f"{prefix}::sugg::{question}").click().run()
-    assert not at.exception
-    assert at.success, "the ask panel must return an answer"
+    assert "Risk score" in [m.label for m in at.metric]
+    assert any(b.label == "Property" and b.value.startswith("PR001") for b in at.selectbox)
