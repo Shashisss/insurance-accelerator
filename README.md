@@ -134,6 +134,20 @@ from v1 to v2.
 API: `/fleet/policies`, `/fleet/policies/{id}/assessment`, `/fleet/groups/{id}`,
 `/fleet/impact-trace`.
 
+## Standards alignment
+
+`ontology/pcdm_alignment.yaml` maps our six entities onto the **OMG P&C Data Model**
+(`pcdm` on PyPI, MPL-2.0): Customer → `party`, Policy → `policy`, Property → `insurable_object`,
+Coverage → `coverage`, Claim → `claim`; RiskAssessment is marked *derived* because the standard has
+no equivalent. Divergences (time on the edge, group above the entity, governed metrics) are declared
+with a reason.
+
+```bash
+pip install pcdm          # optional; the check degrades gracefully without it
+python scripts/check_pcdm.py     # PASS/FAIL against the model's 256 tables
+pytest tests/test_pcdm_alignment.py -q
+```
+
 ## Three use cases, one engine
 
 | Use case | What it decides | What is new |

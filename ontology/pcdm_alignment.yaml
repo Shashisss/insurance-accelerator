@@ -1,0 +1,81 @@
+# Alignment to the OMG Property & Casualty Data Model (PCDM)
+#
+# The POC keeps six entities. This file maps them onto the industry model so the
+# vocabulary survives contact with an architect who knows the standard — without
+# importing 256 tables into a 90-day proof.
+#
+#   standard: OMG P&C Data Model, implementable via the `pcdm` Python package
+#   licence:  MPL-2.0 (implementation), spec free from omg.org
+#   verified: `python scripts/check_pcdm.py`
+#
+# Rule of thumb: align the nouns, keep the model small. A table we do not need
+# is a liability, not a maturity signal.
+
+standard:
+  name: OMG Property & Casualty Data Model
+  version: "PCDM (pcdm 0.x on PyPI)"
+  source: https://www.omg.org/spec/PC/About-PC
+  implementation: https://pypi.org/project/pcdm/
+  licence: MPL-2.0
+
+entities:
+  Customer:
+    pcdm_table: party
+    confidence: direct
+    note: PCDM models every actor as a party with roles; we keep a single Customer class for the POC.
+    attributes:
+      customer_id: party_id
+      name: party_name
+
+  Policy:
+    pcdm_table: policy
+    confidence: direct
+    note: PCDM splits policy from agreement; we keep the contract on one node.
+    attributes:
+      policy_id: policy_id
+      inception_date: effective_date
+      expiry_date: expiration_date
+      status: status_code
+
+  Property:
+    pcdm_table: insurable_object
+    confidence: direct
+    note: PCDM's insurable object is deliberately generic — building, vehicle, cargo. We narrow it to Property.
+    attributes:
+      property_id: insurable_object_id
+
+  Coverage:
+    pcdm_table: coverage
+    confidence: direct
+    note: PCDM carries coverage parts and groups; our limit/deductible sit on the instance.
+    attributes:
+      coverage_id: coverage_id
+      coverage_type: coverage_name
+
+  Claim:
+    pcdm_table: claim
+    confidence: direct
+    note: PCDM separates claim from occurrence; we attach the loss date to the claim.
+    attributes:
+      claim_id: claim_id
+      loss_date: claim_open_date
+
+  RiskAssessment:
+    pcdm_table: null
+    confidence: derived
+    note: No PCDM equivalent — the assessment is the accelerator's own conclusion, not a source record.
+
+# Where we deliberately diverge, and why
+divergences:
+  - topic: Time on the vehicle↔policy edge
+    pcdm: implied by agreement/effective dates
+    ours: explicit Assignment entity with valid_from / valid_to
+    why: the fleet renewal decision turns on a vehicle moving between policies mid-term
+  - topic: Group above the legal entity
+    pcdm: party hierarchy
+    ours: Group → LegalEntity → Policy
+    why: one rule fires on aggregate fleet size, which no single policy can see
+  - topic: Governed metrics
+    pcdm: not modelled
+    ours: metric definitions with versions and change notes
+    why: a rule must reference a definition, not a number
