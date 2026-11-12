@@ -179,3 +179,21 @@ def fleet_impact_trace(as_of: str | None = None, from_version: str = "v1", to_ve
 
     store, registry = _fleet()
     return impact_trace(store, registry, _as_date(as_of), from_version, to_version)
+
+
+@app.post("/ask")
+def ask_endpoint(payload: dict[str, Any]) -> dict[str, Any]:
+    """Natural-language question over the same tools the UI uses.
+
+    The assistant may route and phrase, but every number it returns comes from a
+    tool call — and answers with unsupported numbers are rejected.
+    """
+    from .assistant import Toolbox, ask
+
+    question = str(payload.get("question", "")).strip()
+    if not question:
+        raise HTTPException(status_code=422, detail="question is required")
+    answer = ask(question, Toolbox())
+    body = answer.as_dict()
+    body.pop("detail", None)
+    return body

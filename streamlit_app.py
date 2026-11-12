@@ -1,4 +1,8 @@
-"""Streamlit workbench for the Insurance Ontology Accelerator POC.
+"""Fleet renewal — the ABC Express scenario, with an AI layer on top.
+
+Time-valid vehicle↔policy links, a group above the legal entity, governed metric
+versions with an impact trace, and an assistant that answers questions through
+tools over this same data — never by inventing a number.
 
 Run:  streamlit run streamlit_app.py
 """
@@ -14,364 +18,296 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 import pandas as pd
 import streamlit as st
 
-from iaa.graph import get_store
-from iaa.ingest import map_source_file
-from iaa.ontology import format_condition, get_ontology
-from iaa.risk import assess_all, assess_property, portfolio_summary
-from iaa.rules import months_ago
-from iaa.validation import audit_assessment
-from iaa.viz import cypher_for_property, dot_for_book, dot_for_property
-from iaa.config import settings
+from iaa.assistant import Toolbox, ask, llm_configured
+from iaa.fleet import (
+    MetricRegistry,
+    assess_policy,
+    group_metrics,
+    impact_trace,
+    load_fleet,
+    policy_metrics,
+)
 
-BAND_COLOR = {"Low": "🟢", "Medium": "🟡", "High": "🟠", "Decline": "🔴"}
+st.set_page_config(page_title="Fleet renewal — ABC Express", page_icon="🚚", layout="wide", initial_sidebar_state="expanded")
 
-st.set_page_config(page_title="Insurance Ontology Accelerator", page_icon="🏢", layout="wide")
-
-store = get_store()
-ontology = get_ontology()
+RENEWAL_DATE = date(2027, 1, 1)
 
 
-@st.cache_data(show_spinner=False)
-def all_assessments(as_of: str | None = None) -> list[dict]:
-    return assess_all(store, as_of=as_of)
+@st.cache_resource(show_spinner=False)
+def get_fleet():
+    return load_fleet(), MetricRegistry()
 
-properties = store.list_properties()
-labels = {f"{p['property_id']} · {p['address']}, {p.get('city')} {p.get('state')}": p["property_id"] for p in properties}
+
+store, registry = get_fleet()
+policies = store.list_policies()
+labels = {f"{p['policy_id']} · {p['policy_type']} · renews {p['renewal_date']}": p["policy_id"] for p in policies}
 
 # ---------------------------------------------------------------- sidebar
 with st.sidebar:
-    st.title("🏢 Insurance Ontology")
-    st.caption(f"Ontology v{ontology.version} · ruleset v{ontology.rule_version}")
-    health = store.health()
-    if health.get("ok"):
-        st.success(f"Graph backend: {health['backend']}")
-    else:
-        st.error(health)
-    st.caption(health.get("note", ""))
-
-    choice = st.selectbox("Property", list(labels), index=0)
-    property_id = labels[choice]
-    as_of = st.date_input("Assessment date", value=None)
+    st.title("🚚 Fleet renewal")
+    st.caption(f"Metrics v{registry.version} · ruleset on file")
+    options = list(labels)
+    default = next((i for i, label in enumerate(options) if label.startswith("P205")), 0)
+    choice = st.selectbox("Policy", options, index=default)
+    policy_id = labels[choice]
+    as_of = st.date_input("Assessment date", value=date(2026, 12, 31))
+    version = st.radio("Loss ratio definition", ["v2", "v1"], horizontal=True,
+                       help="v2 adds allocated loss adjustment expense. Switching this is the lifecycle test.")
     st.divider()
-    st.caption(
-        "POC scope: Commercial Property Underwriting Risk Assessment. "
-        "Six entities, eight rules, one explained score."
+    st.caption("Scenario: ABC Express restructured into two entities. 40 vehicles moved off P205. "
+               "P205 renews 1 Jan 2027 with 60 vehicles.")
+    st.caption(("Assistant: model configured" if llm_configured() else "Assistant: deterministic tools (no model key set)"))
+
+as_of = as_of or date(2026, 12, 31)
+result = assess_policy(store, registry, policy_id, as_of, version)
+group = result["group"] or {}
+group_m = group_metrics(store, registry, group.get("group_id", "G1"), as_of, version)
+transfers = store.transfers(date(2025, 12, 31), date(2026, 6, 30))
+
+# ---------------------------------------------------------------- scenario band
+st.title("Fleet renewal: context-aware risk assessment")
+st.caption(
+    f"{result['group_name']} · {result['entity_name']} · {result['policy_label']} · "
+    f"renews {result['renewal_date']} · assessed {as_of}"
+)
+
+c1, c2, c3, c4 = st.columns(4)
+c1.metric("Group fleet", f"{group_m['vehicles']} vehicles", f"{group_m['policies']} policies / 2 entities", delta_color="off")
+c2.metric("Transferred off P205", f"{len(transfers)}", "effective 1 Apr 2026", delta_color="off")
+c3.metric("P205 fleet at renewal", f"{result['metrics']['vehicles']}", "of 100 before restructuring", delta_color="off")
+c4.metric("Metrics version", version.upper(), "v2 includes ALAE" if version == "v2" else "incurred only", delta_color="off")
+
+# ---------------------------------------------------------------- metrics
+st.subheader("Three governed metrics")
+st.caption("Definitions live in `ontology/fleet_metrics.yaml` — versioned, with a change note and an owner. "
+           "The rules reference the metric, never a number.")
+
+m1, m2, m3 = st.columns(3)
+m1.metric("Loss ratio", f"{result['metrics']['loss_ratio']:.1%}",
+          f"{result['metrics']['loss_ratio_version']} · threshold 60%", delta_color="off")
+m2.metric("Frequency", f"{result['metrics']['frequency']:.1f}", "per 100 vehicle-years", delta_color="off")
+m3.metric("Severity", f"{result['metrics']['severity']:,.0f}", "per claim", delta_color="off")
+
+with st.expander("Metric inputs — how those three numbers were produced"):
+    st.dataframe(
+        pd.DataFrame([
+            {"Input": "Premium", "Value": f"{result['metrics']['premium']:,.0f}"},
+            {"Input": "Incurred (period)", "Value": f"{result['metrics']['incurred']:,.0f}"},
+            {"Input": "ALAE", "Value": f"{result['metrics']['alae']:,.0f}"},
+            {"Input": f"Numerator ({version})", "Value": f"{result['metrics']['numerator']:,.0f}"},
+            {"Input": "Claims in period", "Value": str(result["metrics"]["claim_count"])},
+            {"Input": "Vehicles on policy", "Value": str(result["metrics"]["vehicles"])},
+            {"Input": "Vehicle-years", "Value": str(result["metrics"]["vehicle_years"])},
+            {"Input": "Period", "Value": f"{result['metrics']['period']['from']} → {result['metrics']['period']['to']}"},
+        ]),
+        hide_index=True, width="stretch",
     )
 
-# ---------------------------------------------------------------- assessment
-result = assess_property(store, property_id, as_of=str(as_of) if as_of else None)
-ctx = result["context"]
-prop, policy, customer = ctx["property"], ctx["policy"], ctx["customer"]
+# ---------------------------------------------------------------- decision
+if result["refer"]:
+    st.error(f"**{result['decision']}** — FR1 breached at {result['metrics']['loss_ratio']:.1%}. "
+             f"{result['underwriter_note']}")
+elif result["group_review"]:
+    st.warning(f"**{result['decision']}** — {result['underwriter_note']}")
+else:
+    st.success(f"**{result['decision']}** — {result['underwriter_note']}")
 
-st.title("Underwriting risk assessment")
-st.caption(f"{prop['address']}, {prop.get('city')} {prop.get('state')} {prop.get('postcode')} · {prop['property_id']}")
-
-c1, c2, c3, c4, c5 = st.columns(5)
-c1.metric("Risk score", f"{result['score']}/100")
-c2.metric("Band", f"{BAND_COLOR[result['band']]} {result['band']}")
-c3.metric("Decision", result["decision"])
-window_start = months_ago(date.fromisoformat(result["as_of"]), settings.claims_window_months)
-c4.metric("Claims (36m)", len([c for c in ctx["claims"] if c["loss_date"] >= window_start]))
-c5.metric("Sum insured", f"{prop['sum_insured']:,.0f}")
-
-if result["hard_stops"]:
-    for stop in result["hard_stops"]:
-        st.error(
-            f"**Hard stop {stop['id']}** — {stop['reason'].rstrip('.')}. "
-            "Score is not the decision; this property is declined."
-        )
-
-st.progress(min(result["score"], 100) / 100, text=f"Score {result['score']} · raw {result['raw_score']}")
-
-st.subheader("Why this score")
-st.caption("Every rule, the attributes it read, and the points it contributed. No hidden weights.")
-table = pd.DataFrame(
-    [
+st.subheader("Rules")
+st.dataframe(
+    pd.DataFrame([
         {
             "Rule": f["rule_id"],
-            "Factor": f["name"],
-            "Points": f["points"],
-            "Status": f["status"],
+            "Applies when": f"{f['metric']} {'≥' if f['operator'] == 'gte' else '>'} {f['threshold']}",
+            "Actual": (f"{f['actual']:.1%}" if f["metric"] == "loss_ratio" else str(f["actual"])),
+            "Result": "BREACH" if f["breached"] else "pass",
+            "Consequence": f["decision"],
             "Evidence": f["evidence"],
         }
         for f in result["findings"]
-    ]
+    ]),
+    hide_index=True, width="stretch",
+)
+
+# ---------------------------------------------------------------- evidence
+st.subheader("Supporting evidence")
+st.caption("History informs the decision; it does not trigger it. Nothing in this table adds points.")
+if result["evidence"]:
+    st.dataframe(
+        pd.DataFrame([
+            {"Type": e["kind"].replace("_", " ").title(), "Vehicle": e["vehicle_id"], "Detail": e["text"]}
+            for e in result["evidence"]
+        ]),
+        hide_index=True, width="stretch",
+    )
+else:
+    st.caption("No prior or transferred vehicles in the last three years.")
+
+# ---------------------------------------------------------------- lifecycle
+st.divider()
+st.subheader("Lifecycle: one change, traced")
+trace = impact_trace(store, registry, as_of, "v1", "v2")
+st.caption(
+    f"Changing the loss ratio definition v1 → v2 moves **{trace['changed']} of {trace['total']}** decisions. "
+    "This is the deck's 'trace impact' claim, computed rather than asserted."
 )
 st.dataframe(
-    table,
-    hide_index=True,
-    width="stretch",
-    column_config={
-        "Points": st.column_config.NumberColumn(width="small"),
-        "Status": st.column_config.TextColumn(width="small"),
-    },
+    pd.DataFrame([
+        {
+            "Policy": r["policy_id"],
+            "Loss ratio v1": f"{r['loss_ratio_before']:.1%}",
+            "Loss ratio v2": f"{r['loss_ratio_after']:.1%}",
+            "Decision v1": r["decision_before"],
+            "Decision v2": r["decision_after"],
+            "Changed": "yes" if r["changed"] else "no",
+        }
+        for r in trace["policies"]
+    ]),
+    hide_index=True, width="stretch",
 )
-st.caption("Top drivers: " + " · ".join(result["top_drivers"] or ["no adverse factors"]))
 
-left, right = st.columns([1, 1])
-with left:
-    st.subheader("Connected context")
-    st.markdown(
-        f"**Customer** — {customer['name']} ({customer.get('segment')}, {customer.get('region')})\n\n"
-        f"**Policy** — {policy['policy_id']}, {policy['policy_type']}, "
-        f"{policy['inception_date']} → {policy['expiry_date']}, {policy['status']}, premium {policy['premium']:,.0f}"
-    )
-    st.markdown("**Coverages**")
-    st.dataframe(
-        pd.DataFrame([{"Type": c["coverage_type"], "Limit": c["limit"], "Deductible": c["deductible"]} for c in ctx["coverages"]]),
-        hide_index=True,
-        width="stretch",
-    )
+# ---------------------------------------------------------------- graph / temporal
+tab_ask, tab_graph, tab_timeline, tab_group, tab_ontology = st.tabs(
+    ["Ask", "Graph", "Vehicle timeline", "Group", "Ontology & metrics"]
+)
 
-with right:
-    st.subheader(f"Claims ({len(ctx['claims'])})")
-    if ctx["claims"]:
-        st.dataframe(
-            pd.DataFrame(
-                [
-                    {"Claim": c["claim_id"], "Date": str(c["loss_date"]), "Peril": c["peril"], "Amount": c["loss_amount"], "Status": c["status"]}
-                    for c in ctx["claims"]
-                ]
-            ),
-            hide_index=True,
-            width="stretch",
+with tab_ask:
+    st.caption(
+        "Questions are answered by calling the same functions that drew this page. "
+        "The model routes the question and phrases the answer; it never calculates a number, "
+        "and any figure it produces that is not in a tool result is rejected."
+    )
+    mode = "model" if llm_configured() else "deterministic (no model configured)"
+    st.caption(f"Assistant mode: **{mode}**")
+
+    toolbox = Toolbox(store, registry)
+
+    def _run(question: str) -> None:
+        with st.spinner("Routing to tools…"):
+            try:
+                answer = ask(question, toolbox)
+                st.session_state["ask_answer"] = answer.as_dict()
+                st.session_state["ask_question"] = question
+            except Exception as exc:  # keep the demo alive
+                st.session_state["ask_answer"] = {
+                    "text": f"Error: {exc}", "tool": "-", "args": {}, "mode": mode,
+                    "guardrail": None, "trace": [],
+                }
+                st.session_state["ask_question"] = question
+
+    st.markdown("**Try one:**")
+    suggestions = [
+        "Why is P205 referred?",
+        "What happened to V041?",
+        "Which vehicles moved?",
+        "How big is the group?",
+        "What changes if we use the v1 definition?",
+    ]
+    scols = st.columns(len(suggestions))
+    for col, q in zip(scols, suggestions):
+        if col.button(q, key=f"sugg::{q}"):
+            _run(q)
+
+    with st.form("ask_form", clear_on_submit=False, border=False):
+        question = st.text_input(
+            "Or ask your own",
+            placeholder="e.g. why is P205 referred?",
+            label_visibility="collapsed",
         )
-    else:
-        st.caption("No claims on record.")
+        if st.form_submit_button("Ask", type="primary") and question.strip():
+            _run(question.strip())
 
-# ---------------------------------------------------------------- tabs
-st.divider()
-tab_graph, tab_portfolio, tab_rules, tab_mapping, tab_ontology, tab_quality = st.tabs(
-    ["Graph view", "Portfolio", "Rules & scoring", "Source mapping", "Ontology", "Data quality"]
-)
+    stored = st.session_state.get("ask_answer")
+    if stored:
+        asked = st.session_state.get("ask_question", "")
+        if asked:
+            st.markdown(f"**Q:** {asked}")
+        st.success(stored["text"])
+        if stored.get("guardrail"):
+            st.warning(f"Guardrail: {stored['guardrail']}")
+        with st.expander("How this was produced — tool, arguments, verification"):
+            st.markdown(f"**Tool called:** `{stored['tool']}`  \n**Arguments:** `{stored['args']}`")
+            st.dataframe(pd.DataFrame(stored["trace"]), hide_index=True, width="stretch")
+            if stored.get("detail"):
+                st.json(stored["detail"])
 
 with tab_graph:
-    st.caption(
-        "Every node and relationship the assessment just walked. Coloured by entity type; "
-        "the risk node carries the band. This is the same data the in-memory store holds — "
-        "and the same shape as what `scripts/load_neo4j.py` writes into Neo4j."
-    )
+    st.caption("Group → entity → policy → vehicle, with time on the vehicle↔policy edge.")
+    nodes = [{"id": group.get("group_id"), "type": "Group", "label": group.get("name")}]
+    for entity in store.entities.values():
+        if entity["group_id"] == group.get("group_id"):
+            nodes.append({"id": entity["entity_id"], "type": "LegalEntity", "label": entity["name"]})
+    for p in store.group_policies(group.get("group_id", "G1")):
+        nodes.append({"id": p["policy_id"], "type": "Policy",
+                      "label": f"{p['policy_id']} · renews {p['renewal_date']}"})
+    st.dataframe(pd.DataFrame(nodes), hide_index=True, width="stretch")
 
-    one, book = st.tabs([f"This property ({property_id})", "Whole book (customers → policies → properties)"])
-
-    with one:
-        st.graphviz_chart(dot_for_property(store, property_id, result), use_container_width=True)
-
-    with book:
-        st.graphviz_chart(dot_for_book(store, all_assessments()), width="stretch")
-
-    with st.expander("Node and relationship tables"):
-        nodes = [{"id": customer["customer_id"], "label": "Customer", "name": customer["name"]},
-                 {"id": policy["policy_id"], "label": "Policy", "name": policy["policy_type"]},
-                 {"id": prop["property_id"], "label": "Property", "name": prop["address"]}]
-        nodes += [{"id": c["coverage_id"], "label": "Coverage", "name": c["coverage_type"]} for c in ctx["coverages"]]
-        nodes += [{"id": c["claim_id"], "label": "Claim", "name": f"{c['peril']} {c['loss_amount']:,.0f}"} for c in ctx["claims"]]
-        edges = [("Customer", customer["customer_id"], "BUYS", "Policy", policy["policy_id"]),
-                 ("Policy", policy["policy_id"], "COVERS", "Property", prop["property_id"])]
-        edges += [("Policy", policy["policy_id"], "HAS_COVERAGE", "Coverage", c["coverage_id"]) for c in ctx["coverages"]]
-        edges += [("Property", prop["property_id"], "HAS_CLAIM", "Claim", c["claim_id"]) for c in ctx["claims"]]
-        edges += [("Property", prop["property_id"], "HAS_RISK", "RiskAssessment", result["assessment_id"])]
-
-        gc1, gc2 = st.columns(2)
-        gc1.markdown("**Nodes**")
-        gc1.dataframe(pd.DataFrame(nodes), hide_index=True, width="stretch")
-        gc2.markdown("**Relationships**")
-        gc2.dataframe(
-            pd.DataFrame([{"from_label": a, "from": b, "rel": c, "to_label": d, "to": e} for a, b, c, d, e in edges]),
-            hide_index=True,
-            width="stretch",
-        )
-
-    with st.expander("Export — Graphviz DOT / Cypher"):
-        e1, e2 = st.columns(2)
-        e1.markdown("**Graphviz DOT**")
-        e1.code(dot_for_property(store, property_id, result), language="dot")
-        e2.markdown("**Cypher (paste into Neo4j Browser)**")
-        e2.code(cypher_for_property(store, property_id), language="cypher")
-        st.download_button(
-            "Download this property as Cypher",
-            data=cypher_for_property(store, property_id),
-            file_name=f"{property_id}.cypher",
-            mime="text/plain",
-        )
-
-with tab_portfolio:
-    assessments = all_assessments()
-    summary = portfolio_summary(assessments)
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Properties", summary["properties"])
-    m2.metric("Average score", summary["average_score"])
-    m3.metric("Refer / decline", summary["by_decision"].get("Refer to underwriter", 0) + summary["by_decision"].get("Decline", 0))
-    m4.metric("Hard stops", summary["hard_stops"])
-
-    frame = pd.DataFrame(
-        [
-            {
-                "Property": a["property_id"],
-                "Address": a["property_label"],
-                "Customer": a.get("customer_name"),
-                "Score": a["score"],
-                "Band": a["band"],
-                "Decision": a["decision"],
-                "Top driver": a["top_drivers"][0] if a["top_drivers"] else "none",
-            }
-            for a in assessments
-        ]
-    ).sort_values("Score", ascending=False)
-    st.dataframe(frame, hide_index=True, width="stretch")
-    st.bar_chart(frame.set_index("Property")["Score"])
-
-with tab_rules:
-    summary = ontology.scoring_summary()
-    thresholds = summary["thresholds"]
-    st.caption(
-        f"Ruleset v{summary['ruleset_version']} · {summary['rule_count']} rules · "
-        f"score capped at {summary['max_score']} · bands: "
-        f"< {thresholds['medium']} Low · {thresholds['medium']}–{thresholds['high'] - 1} Medium · "
-        f"{thresholds['high']}–{thresholds['decline'] - 1} High · ≥ {thresholds['decline']} Decline"
-    )
-
-    catalogue = ontology.rule_catalogue()
-    st.markdown("**The ruleset, as configured**")
+    st.markdown("**Edges from this policy**")
+    vehicles = result["vehicles"]
     st.dataframe(
-        pd.DataFrame(
-            [
-                {
-                    "Rule": row["id"],
-                    "Factor": row["name"],
-                    "Reads": row["reads"],
-                    "Points awarded": row["points"],
-                    "Why": row["rationale"],
-                }
-                for row in catalogue
-            ]
-        ),
-        hide_index=True,
-        width="stretch",
-        column_config={
-            "Rule": st.column_config.TextColumn(width="medium"),
-            "Factor": st.column_config.TextColumn(width="small"),
-            "Reads": st.column_config.TextColumn(width="small"),
-            "Points awarded": st.column_config.TextColumn(width="large"),
-            "Why": st.column_config.TextColumn(width="large"),
-        },
+        pd.DataFrame([
+            {"from": policy_id, "rel": "COVERS (valid 2026-04-01 → 2026-12-31)", "to": f"{len(vehicles)} vehicles"},
+            {"from": policy_id, "rel": "HOLDS ←", "to": result["entity_name"]},
+            {"from": result["entity_name"], "rel": "OWNS ←", "to": result["group_name"]},
+        ]),
+        hide_index=True, width="stretch",
     )
 
-    st.markdown("**Hard stops** — these decline regardless of the points total")
+with tab_timeline:
+    vehicle_ids = sorted(store.vehicles)
+    pick = st.selectbox("Vehicle", vehicle_ids, index=vehicle_ids.index("V041"))
+    history = store.vehicle_history(pick)
     st.dataframe(
-        pd.DataFrame(
-            [
-                {"Stop": s["id"], "Condition": format_condition(s.get("when", {})), "Reason": s.get("reason", "")}
-                for s in ontology.hard_stops
-            ]
-        ),
-        hide_index=True,
-        width="stretch",
+        pd.DataFrame([
+            {"Policy": h["policy_id"], "From": h["valid_from"].isoformat(),
+             "To": h["valid_to"].isoformat(), "Reason": h["transfer_reason"]}
+            for h in history
+        ]),
+        hide_index=True, width="stretch",
     )
+    claims = store.claims_for_vehicle(pick)
+    if claims:
+        st.markdown("**Claims on this vehicle**")
+        st.dataframe(
+            pd.DataFrame([
+                {"Claim": c["claim_id"], "Date": c["loss_date"].isoformat(), "Peril": c["peril"],
+                 "Incurred": c["incurred"], "ALAE": c["alae"], "Policy at loss": c["policy_id"]}
+                for c in claims
+            ]),
+            hide_index=True, width="stretch",
+        )
+    st.caption("The claim follows the vehicle, not the policy. That is why V041's history is visible on P101 today.")
 
-    st.divider()
-    st.markdown(f"**Validate the assessment for {property_id}**")
-    st.caption(
-        "Two independent calculations, side by side: the points the engine awarded, and the points the "
-        "configuration implies for the same inputs. A mismatch means the rule or its data has drifted."
-    )
-    audit_rows = audit_assessment(ontology, result)
-    applied_by_rule = {f["rule_id"]: f for f in result["findings"]}
+with tab_group:
+    st.metric("Group loss ratio", f"{group_m['loss_ratio']:.1%}", f"{group_m['loss_ratio_version']}")
     st.dataframe(
-        pd.DataFrame(
-            [
-                {
-                    "Rule": row["rule_id"],
-                    "Input the engine read": ", ".join(
-                        f"{k}={v}" for k, v in (applied_by_rule.get(row["rule_id"], {}).get("inputs") or {}).items()
-                    ),
-                    "Awarded": row["applied"],
-                    "Implied by config": row["expected"],
-                    "Check": "matches" if row["matches"] else "MISMATCH",
-                    "Note": row["note"],
-                }
-                for row in audit_rows
-            ]
-        ),
-        hide_index=True,
-        width="stretch",
+        pd.DataFrame([
+            {"Input": "Premium", "Value": f"{group_m['premium']:,.0f}"},
+            {"Input": "Incurred", "Value": f"{group_m['incurred']:,.0f}"},
+            {"Input": "ALAE", "Value": f"{group_m['alae']:,.0f}"},
+            {"Input": "Claims", "Value": str(group_m["claim_count"])},
+            {"Input": "Vehicles", "Value": str(group_m["vehicles"])},
+        ]),
+        hide_index=True, width="stretch",
     )
-    mismatches = [row for row in audit_rows if not row["matches"]]
-    if mismatches:
-        st.error(f"{len(mismatches)} rule(s) disagree with the configuration: {', '.join(m['rule_id'] for m in mismatches)}")
-    else:
-        st.success(f"All {len(audit_rows)} rules agree with the configuration.")
-
-    hits = []
-    portfolio_rows = all_assessments()
-    for row in catalogue:
-        fired = [a for a in portfolio_rows if any(f["rule_id"] == row["id"] and f["points"] > 0 for f in a["findings"])]
-        highest = max(
-            (f["points"] for a in portfolio_rows for f in a["findings"] if f["rule_id"] == row["id"]),
-            default=0,
-        )
-        hits.append(
-            {
-                "Rule": row["id"],
-                "Factor": row["name"],
-                "Properties it fires on": len(fired),
-                "Highest award in the book": highest,
-                "Of": len(portfolio_rows),
-            }
-        )
-    with st.expander("How often each rule fires across the book"):
-        st.dataframe(pd.DataFrame(hits), hide_index=True, width="stretch")
-        st.caption("A rule that never fires on this book is either irrelevant or mis-specified — both worth knowing.")
-
-
-with tab_mapping:
-    st.caption("Raw insurer schedule extract mapped onto the canonical Property entity via the ontology's `source_mapping`.")
-    raw_path = Path("data/source/property_schedule_raw.csv")
-    st.markdown("**Raw source (first rows)**")
-    st.dataframe(pd.read_csv(raw_path).head(4), hide_index=True, width="stretch")
-    mapped, issues = map_source_file(raw_path)
-    st.markdown(f"**Mapped to canonical model** — {len(mapped)} rows accepted, {len(issues)} issue(s)")
-    st.dataframe(pd.DataFrame(mapped).head(8), hide_index=True, width="stretch")
-    if issues:
-        st.markdown("**Issues**")
-        st.dataframe(pd.DataFrame([i.as_dict() for i in issues]), hide_index=True, width="stretch")
+    st.caption("FR2 reads this number, not the policy's. 150 > 120 — no single policy can see that.")
 
 with tab_ontology:
-    onto = ontology.describe()
-    st.markdown(f"**{onto['domain']}** · version {onto['version']} · ruleset {onto['rule_version']}")
-    for name, spec in onto["entities"].items():
-        with st.expander(f"{name} ({len(spec['attributes'])} attributes)"):
-            st.caption(spec["definition"])
-            st.dataframe(
-                pd.DataFrame(
-                    [{"Attribute": a["name"], "Type": a["type"], "Required": a["required"], "Definition": a["definition"]} for a in spec["attributes"]]
-                ),
-                hide_index=True,
-                width="stretch",
-            )
-    st.markdown("**Relationships**")
+    st.markdown("**Loss ratio definition history**")
     st.dataframe(
-        pd.DataFrame(
-            [{"Relationship": r["name"], "From": r["from"], "To": r["to"], "Cardinality": r["cardinality"], "Definition": r["definition"]} for r in onto["relationships"]]
-        ),
-        hide_index=True,
-        width="stretch",
+        pd.DataFrame([
+            {"Version": v["version"], "Formula": v["formula"], "Effective": v["effective_from"], "Note": v.get("note", "")}
+            for v in registry.lineage("loss_ratio")
+        ]),
+        hide_index=True, width="stretch",
     )
-
-with tab_quality:
-    ds = getattr(store, "dataset", None)
-    if ds is None:
-        st.info("Data quality issues are shown for the embedded backend. Neo4j runs the same validation in `scripts/load_neo4j.py`.")
-    else:
-        counts = ds.counts()
-        st.dataframe(pd.DataFrame([{"Entity": k, "Records": v} for k, v in counts.items()]), hide_index=True, width="stretch")
-        if ds.issues:
-            st.dataframe(pd.DataFrame([i.as_dict() for i in ds.issues]), hide_index=True, width="stretch")
-        else:
-            st.success("No validation or referential integrity issues in the canonical dataset.")
+    st.markdown("**Model**")
+    st.markdown(
+        "`Group → OWNS → LegalEntity → HOLDS → Policy → COVERS (time-valid) → Vehicle → HAS_CLAIM → Claim`  \n"
+        "`Claim → CLAIMED_ON → Policy (the policy in force at the loss date)`"
+    )
 
 st.divider()
 st.caption(
-    "Score = capped sum of rule points. Bands: <25 Low · 25–44 Medium · 45–64 High · ≥65 or hard stop Decline. "
-    "Neo4j connects the insurance information; the rules and actuarial calculations stay separate."
+    "Illustrative scenario — synthetic data, not an underwriting policy. "
+    "FR1 and FR2 are demonstration rules, not a rate filing."
 )

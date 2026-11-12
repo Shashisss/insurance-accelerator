@@ -134,6 +134,27 @@ from v1 to v2.
 API: `/fleet/policies`, `/fleet/policies/{id}/assessment`, `/fleet/groups/{id}`,
 `/fleet/impact-trace`.
 
+## AI layer (optional model, always tools)
+
+`src/iaa/assistant.py` answers questions by calling the same functions the page and the API use —
+`assess_policy`, `policy_metrics`, `group_metrics`, `vehicle_history`, `transfers`, `impact_trace`.
+
+- **No model required.** A deterministic planner routes the question and the answer is composed from
+  the tool result. That is what the deployed demo runs.
+- **Model optional.** Set `IAA_LLM_BASE_URL`, `IAA_LLM_API_KEY`, `IAA_LLM_MODEL` (any
+  OpenAI-compatible endpoint) and the model plans and phrases — still over the same tools.
+- **The guardrail.** Every number in an answer is checked against a fact sheet built from the tool
+  output. Any figure that is not there is grounds for rejection, and the deterministic answer is
+  served instead. Tested in `tests/test_assistant.py`.
+
+```bash
+curl -s localhost:8000/ask -X POST -H 'content-type: application/json' \
+  -d '{"question":"why is P205 referred?"}'
+```
+
+The UI entry point (`streamlit_app.py`) is the fleet screen; the property workbench still runs from
+`property_app.py`.
+
 ## Deliberate non-goals for now
 
 No ACORD/OPIN dependency, no OWL/Protégé reasoning, no separate vector database, no GraphRAG,
