@@ -230,7 +230,7 @@ rect(s, Inches(0.9), Inches(4.75), Inches(1.5), Inches(0.04), fill=RGBColor(0x7F
 text(s, Inches(0.9), Inches(5.0), Inches(5.4), Inches(0.9),
      "Commercial property underwriting\nFleet renewal at group level", size=13, color=RGBColor(0xE6, 0xEC, 0xF2), spacing=1.2)
 text(s, Inches(6.7), Inches(5.0), Inches(5.6), Inches(0.9),
-     "6 entities · 7 relationships · 8 rules · 48 tests\nRunning: property + fleet, same engine",
+     "6 entities · 7 relationships · 8 rules · 82 tests\nRunning: property + fleet, same engine",
      size=13, color=RGBColor(0xE6, 0xEC, 0xF2), spacing=1.2)
 text(s, Inches(0.9), Inches(6.6), Inches(11), Inches(0.3), "Version 2.0  ·  November 2026  ·  reference implementation: insurance-accelerator",
      size=10, color=RGBColor(0x8F, 0xA3, 0xB5))
@@ -310,7 +310,7 @@ tiles(s, [
     ("6", "canonical entities"),
     ("7", "typed relationships"),
     ("8 + 3", "scored rules + hard stops"),
-    ("48", "tests passing"),
+    ("82", "tests passing"),
 ], y=Inches(1.7))
 
 text(s, Inches(0.75), Inches(3.15), Inches(5.6), Inches(0.35), "IN THE BOX", size=10.5, bold=True, color=BLUE)
@@ -346,7 +346,7 @@ bullets(s, Inches(8.45), Inches(2.15), Inches(4.2), [
     ("Two hard stops", "facts outrank arithmetic"),
     ("Every row", "names the attribute it read"),
     ("Connected context", "policy, coverages, claims"),
-    ("48 tests", "the criterion, asserted"),
+    ("82 tests", "the criterion, asserted"),
 ], size=11.5, gap=0.55)
 text(s, Inches(8.45), Inches(5.6), Inches(4.2), Inches(1.0),
      "PR005: 1948 frame, no sprinkler, flood zone AE, 79% insured, ₹5.35L losses in 36 months.",
@@ -670,7 +670,7 @@ s = prs.slides.add_slide(BLANK)
 header(s, "Roadmap", "90 days to prove, three quarters to scale", 16)
 
 phases = [
-    ("0–90 DAYS", "Prove", ["One value stream: property UW", "Six entities, ruleset v1.0", "Workbench + explained API", "48 tests, baseline metrics"], BLUE),
+    ("0–90 DAYS", "Prove", ["One value stream: property UW", "Six entities, ruleset v1.0", "Workbench + explained API", "82 tests, baseline metrics"], BLUE),
     ("Q2", "Pilot", ["Add claims and billing sources", "Three domains, 10× data", "Governed ontology repo", "Metric layer + lineage"], TEAL),
     ("Q3–Q4", "Scale", ["ACORD-aligned extensions", "Agent tools with authority", "Policy engine + audit", "FinOps and unit economics"], AMBER),
 ]
