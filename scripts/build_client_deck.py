@@ -357,7 +357,7 @@ band(s, Inches(5.40), Inches(1.0), "Context is the part everyone skips",
 # ==========================================================================
 s = prs.slides.add_slide(BLANK)
 frame(s, "Standards", "Standards give vocabulary, not volume",
-      "We adopted the content model, parked the exchange standards, and leave reporting taxonomies until reporting is the driver.", 5)
+      "A choice, an obligation and a market condition — read the three columns that way.", 5)
 
 cols = [
     ("CONTENT MODELS", ["OMG P&C  ·  used here", "ACORD  ·  member only", "riskine  ·  Apache-2.0", "FIBO  ·  legal entities"], True),
