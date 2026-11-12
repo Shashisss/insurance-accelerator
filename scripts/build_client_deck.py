@@ -438,12 +438,12 @@ card(s, Inches(3.25), Inches(1.95), Inches(6.6), Inches(3.45), fill=CARD, line=A
 text(s, Inches(3.45), Inches(2.05), Inches(4.0), Inches(0.25), "SEMANTIC LAYER", size=9.5, bold=True, color=ACCENT)
 
 inner = [
-    ("Ontology repo", "entities · keys · edges", 3.45, 2.40),
-    ("Graph store", "instances + dated edges", 5.55, 2.40),
-    ("Metric layer", "definitions · versions", 7.65, 2.40),
-    ("Rules service", "thresholds · decisions", 3.45, 3.35),
-    ("Evidence store", "inputs · findings · decisions", 5.55, 3.35),
-    ("Tool surface", "read-only functions", 7.65, 3.35),
+    ("Ontology repo", "party · policy · cover · claim", 3.45, 2.40),
+    ("Graph store", "dated cover edges, claim links", 5.55, 2.40),
+    ("Metric layer", "loss ratio · frequency · severity", 7.65, 2.40),
+    ("Rules service", "referral thresholds · hard stops", 3.45, 3.35),
+    ("Evidence store", "decision + inputs + version", 5.55, 3.35),
+    ("Tool surface", "assess · history · impact", 7.65, 3.35),
 ]
 for name, sub, x, y in inner:
     shape(s, MSO_SHAPE.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(1.95), Inches(0.78),
@@ -452,8 +452,8 @@ for name, sub, x, y in inner:
     text(s, Inches(x + 0.10), Inches(y + 0.38), Inches(1.75), Inches(0.35), sub, size=8.5, color=MUTED)
 
 text(s, Inches(3.45), Inches(4.35), Inches(6.2), Inches(0.9),
-     "History lives here — every vehicle↔policy link carries valid_from / valid_to.\n"
-     "Trace lives here too — each decision stores the inputs, findings and the rule version used.",
+     "History: every vehicle↔policy link is dated, so ‘which fleet covered this truck at renewal’ is a query, not a guess.\n"
+     "Trace: each underwriting decision stores its inputs, findings and ruleset version — replayable by date.",
      size=10, color=MUTED, spacing=1.25)
 
 shape(s, MSO_SHAPE.RIGHT_ARROW, Inches(9.95), Inches(3.45), Inches(0.4), Inches(0.3), fill=ACCENT)
@@ -469,11 +469,11 @@ for i, name in enumerate(["Workbench", "API", "BI"]):
 card(s, Inches(10.45), Inches(4.05), Inches(2.3), Inches(1.35), fill=ACCENT)
 text(s, Inches(10.62), Inches(4.18), Inches(2.0), Inches(0.25), "AI / AGENT", size=9, bold=True, color=WHITE)
 text(s, Inches(10.62), Inches(4.45), Inches(2.0), Inches(0.85),
-     "calls tools\nnever writes\nnever computes", size=9, color=WHITE, spacing=1.2)
+     "FNOL triage · renewal note\nexplain the decision\nnever computes", size=9, color=WHITE, spacing=1.2)
 
 band(s, Inches(5.75), Inches(0.95), "The boundary",
-     "The AI layer sits outside the box and only reaches it through the tool surface — read-only. "
-     "It can route a question and phrase an answer; the numbers still come from the rules and the metrics.")
+     "In an insurer, the agent sits outside the layer: it can draft an FNOL summary, explain a referral or a reserve movement — "
+     "but every figure it quotes came from the policy, claim and metric services, never from the model.")
 
 # ==========================================================================
 # 7 — paired stack, not a table
@@ -511,15 +511,15 @@ text(s, Inches(10.15), Inches(2.35), Inches(2.6), Inches(3.4),
 # 9 — business outcomes, generic
 # ==========================================================================
 s = prs.slides.add_slide(BLANK)
-frame(s, "Business outcomes", "What any business gets, whichever domain you start in",
-      "The same five outcomes show up wherever decisions are made across systems and time.", 9)
+frame(s, "Business outcomes", "Where the value lands in an insurer",
+      "Five moments where a decision is made — and where the layer changes what is possible.", 9)
 
 outcomes = [
-    ("FASTER", MSO_SHAPE.OVAL, "Decisions in seconds,\nnot days of chasing", "renewal pack assembled"),
-    ("WIDER", MSO_SHAPE.DIAMOND, "Exposure across entities\nand time becomes visible", "150 vehicles, 40 transfers"),
-    ("PROVABLE", MSO_SHAPE.RECTANGLE, "Every number traces to\na rule and a version", "60% = 2,16,000 / 3,60,000"),
-    ("REUSABLE", MSO_SHAPE.ISOSCELES_TRIANGLE, "New use case, new rules —\nsame spine", "3 decisions, 1 model"),
-    ("CHEAPER", MSO_SHAPE.HEXAGON, "New source maps to the\nmodel, not to code", "16-column extract"),
+    ("RENEWAL", MSO_SHAPE.OVAL, "Policy + group + transfer\nhistory on one screen", "pack in minutes, not days"),
+    ("FNOL", MSO_SHAPE.DIAMOND, "Coverage, prior losses and\ngaps at first notification", "triage, not re-keying"),
+    ("RESERVING", MSO_SHAPE.RECTANGLE, "Adverse development\nbroken into drivers", "20 → 23 Cr, explained"),
+    ("PRICING", MSO_SHAPE.ISOSCELES_TRIANGLE, "Indication from versioned\nassumptions, with sensitivity", "10L → 12.79L indicated"),
+    ("ONBOARDING", MSO_SHAPE.HEXAGON, "New scheme or bordereaux\nmaps to canonical entities", "16 columns, one mapping"),
 ]
 x = Inches(0.55)
 for head, kind, body, example in outcomes:
