@@ -71,11 +71,76 @@ st.caption(
     f"renews {result['renewal_date']} · assessed {as_of}"
 )
 
+# ---------------------------------------------------------------- ask (AI layer)
+with st.container(border=True):
+    st.markdown("### Ask this book a question")
+    _mode = "model" if llm_configured() else "deterministic (no model configured)"
+    st.caption(
+        "Answered by calling the same functions that drew this page — the assistant routes and phrases, "
+        "it never calculates, and any figure not returned by a tool is rejected. "
+        f"Mode: **{_mode}**."
+    )
+
+    toolbox = Toolbox(store, registry)
+
+    def _run(question: str) -> None:
+        with st.spinner("Routing to tools…"):
+            try:
+                answer = ask(question, toolbox)
+                st.session_state["ask_answer"] = answer.as_dict()
+                st.session_state["ask_question"] = question
+            except Exception as exc:  # keep the demo alive
+                st.session_state["ask_answer"] = {
+                    "text": f"Error: {exc}", "tool": "-", "args": {}, "mode": _mode,
+                    "guardrail": None, "trace": [],
+                }
+                st.session_state["ask_question"] = question
+
+    st.markdown("**Try one:**")
+    suggestions = [
+        "Why is P205 referred?",
+        "What happened to V041?",
+        "Which vehicles moved?",
+        "How big is the group?",
+        "What changes if we use the v1 definition?",
+    ]
+    scols = st.columns(len(suggestions))
+    for col, q in zip(scols, suggestions):
+        if col.button(q, key=f"sugg::{q}"):
+            _run(q)
+
+    with st.form("ask_form", clear_on_submit=False, border=False):
+        question = st.text_input(
+            "Or ask your own",
+            placeholder="e.g. why is P205 referred?",
+            label_visibility="collapsed",
+        )
+        if st.form_submit_button("Ask", type="primary") and question.strip():
+            _run(question.strip())
+
+    stored = st.session_state.get("ask_answer")
+    if stored:
+        asked = st.session_state.get("ask_question", "")
+        if asked:
+            st.markdown(f"**Q:** {asked}")
+        st.success(stored["text"])
+        if stored.get("guardrail"):
+            st.warning(f"Guardrail: {stored['guardrail']}")
+        with st.expander("How this was produced — tool, arguments, verification"):
+            st.markdown(f"**Tool called:** `{stored['tool']}`  \n**Arguments:** `{stored['args']}`")
+            st.dataframe(pd.DataFrame(stored["trace"]), hide_index=True, width="stretch")
+            if stored.get("detail"):
+                st.json(stored["detail"])
+
 c1, c2, c3, c4 = st.columns(4)
-c1.metric("Group fleet", f"{group_m['vehicles']} vehicles", f"{group_m['policies']} policies / 2 entities", delta_color="off")
-c2.metric("Transferred off P205", f"{len(transfers)}", "effective 1 Apr 2026", delta_color="off")
-c3.metric("P205 fleet at renewal", f"{result['metrics']['vehicles']}", "of 100 before restructuring", delta_color="off")
-c4.metric("Metrics version", version.upper(), "v2 includes ALAE" if version == "v2" else "incurred only", delta_color="off")
+c1.metric("Group fleet", f"{group_m['vehicles']} vehicles")
+c1.caption(f"{group_m['policies']} policies / 2 entities")
+c2.metric("Transferred off P205", f"{len(transfers)}")
+c2.caption("effective 1 Apr 2026")
+c3.metric("P205 fleet at renewal", f"{result['metrics']['vehicles']}")
+c3.caption("of 100 before restructuring")
+c4.metric("Metrics version", version.upper())
+c4.caption("v2 includes ALAE" if version == "v2" else "incurred only")
 
 # ---------------------------------------------------------------- metrics
 st.subheader("Three governed metrics")
@@ -83,10 +148,12 @@ st.caption("Definitions live in `ontology/fleet_metrics.yaml` — versioned, wit
            "The rules reference the metric, never a number.")
 
 m1, m2, m3 = st.columns(3)
-m1.metric("Loss ratio", f"{result['metrics']['loss_ratio']:.1%}",
-          f"{result['metrics']['loss_ratio_version']} · threshold 60%", delta_color="off")
-m2.metric("Frequency", f"{result['metrics']['frequency']:.1f}", "per 100 vehicle-years", delta_color="off")
-m3.metric("Severity", f"{result['metrics']['severity']:,.0f}", "per claim", delta_color="off")
+m1.metric("Loss ratio", f"{result['metrics']['loss_ratio']:.1%}")
+m1.caption(f"{result['metrics']['loss_ratio_version']} · threshold 60%")
+m2.metric("Frequency", f"{result['metrics']['frequency']:.1f}")
+m2.caption("per 100 vehicle-years")
+m3.metric("Severity", f"{result['metrics']['severity']:,.0f}")
+m3.caption("per claim")
 
 with st.expander("Metric inputs — how those three numbers were produced"):
     st.dataframe(
@@ -166,69 +233,9 @@ st.dataframe(
 )
 
 # ---------------------------------------------------------------- graph / temporal
-tab_ask, tab_graph, tab_timeline, tab_group, tab_ontology = st.tabs(
-    ["Ask", "Graph", "Vehicle timeline", "Group", "Ontology & metrics"]
+tab_graph, tab_timeline, tab_group, tab_ontology = st.tabs(
+    ["Graph", "Vehicle timeline", "Group", "Ontology & metrics"]
 )
-
-with tab_ask:
-    st.caption(
-        "Questions are answered by calling the same functions that drew this page. "
-        "The model routes the question and phrases the answer; it never calculates a number, "
-        "and any figure it produces that is not in a tool result is rejected."
-    )
-    mode = "model" if llm_configured() else "deterministic (no model configured)"
-    st.caption(f"Assistant mode: **{mode}**")
-
-    toolbox = Toolbox(store, registry)
-
-    def _run(question: str) -> None:
-        with st.spinner("Routing to tools…"):
-            try:
-                answer = ask(question, toolbox)
-                st.session_state["ask_answer"] = answer.as_dict()
-                st.session_state["ask_question"] = question
-            except Exception as exc:  # keep the demo alive
-                st.session_state["ask_answer"] = {
-                    "text": f"Error: {exc}", "tool": "-", "args": {}, "mode": mode,
-                    "guardrail": None, "trace": [],
-                }
-                st.session_state["ask_question"] = question
-
-    st.markdown("**Try one:**")
-    suggestions = [
-        "Why is P205 referred?",
-        "What happened to V041?",
-        "Which vehicles moved?",
-        "How big is the group?",
-        "What changes if we use the v1 definition?",
-    ]
-    scols = st.columns(len(suggestions))
-    for col, q in zip(scols, suggestions):
-        if col.button(q, key=f"sugg::{q}"):
-            _run(q)
-
-    with st.form("ask_form", clear_on_submit=False, border=False):
-        question = st.text_input(
-            "Or ask your own",
-            placeholder="e.g. why is P205 referred?",
-            label_visibility="collapsed",
-        )
-        if st.form_submit_button("Ask", type="primary") and question.strip():
-            _run(question.strip())
-
-    stored = st.session_state.get("ask_answer")
-    if stored:
-        asked = st.session_state.get("ask_question", "")
-        if asked:
-            st.markdown(f"**Q:** {asked}")
-        st.success(stored["text"])
-        if stored.get("guardrail"):
-            st.warning(f"Guardrail: {stored['guardrail']}")
-        with st.expander("How this was produced — tool, arguments, verification"):
-            st.markdown(f"**Tool called:** `{stored['tool']}`  \n**Arguments:** `{stored['args']}`")
-            st.dataframe(pd.DataFrame(stored["trace"]), hide_index=True, width="stretch")
-            if stored.get("detail"):
-                st.json(stored["detail"])
 
 with tab_graph:
     st.caption("Group → entity → policy → vehicle, with time on the vehicle↔policy edge.")

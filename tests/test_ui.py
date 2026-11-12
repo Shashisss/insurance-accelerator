@@ -19,8 +19,8 @@ def test_fleet_page_is_the_entry_point():
     policy_box = next(b for b in at.selectbox if b.label == "Policy")
     assert policy_box.value.startswith("P205")
     tabs = [t.label for t in at.tabs]
-    assert tabs[0] == "Ask"
-    assert "Vehicle timeline" in tabs
+    assert "Ask" not in tabs, "the ask panel now sits above the tabs"
+    assert tabs[:2] == ["Graph", "Vehicle timeline"]
 
 
 def test_fleet_page_follows_the_selected_policy():
