@@ -451,10 +451,21 @@ for name, sub, x, y in inner:
     text(s, Inches(x + 0.10), Inches(y + 0.10), Inches(1.75), Inches(0.25), name, size=10, bold=True, color=INK)
     text(s, Inches(x + 0.10), Inches(y + 0.38), Inches(1.75), Inches(0.35), sub, size=8.5, color=MUTED)
 
-text(s, Inches(3.45), Inches(4.35), Inches(6.2), Inches(0.9),
-     "History: every vehicle↔policy link is dated, so ‘which fleet covered this truck at renewal’ is a query, not a guess.\n"
-     "Trace: each underwriting decision stores its inputs, findings and ruleset version — replayable by date.",
-     size=10, color=MUTED, spacing=1.25)
+text(s, Inches(3.45), Inches(4.24), Inches(6.2), Inches(0.5),
+     "History: dated cover edges.  Trace: every decision stored with its inputs.",
+     size=9.5, color=MUTED)
+
+# context strip — cross-cutting, not a box
+text(s, Inches(3.45), Inches(4.72), Inches(6.2), Inches(0.22), "CONTEXT  ·  WHICH MEANING APPLIES", size=8, bold=True, color=ACCENT)
+chips = [("as-at date", True), ("definition version", True), ("who is asking", False), ("what they may do", False)]
+cx = Inches(3.45)
+for label, built in chips:
+    w = Inches(1.45)
+    shape(s, MSO_SHAPE.ROUNDED_RECTANGLE, cx, Inches(4.96), w, Inches(0.32),
+          fill=WHITE if built else GREY_SOFT, line=ACCENT if built else None)
+    text(s, cx, Inches(5.01), w, Inches(0.22), label, size=8, bold=built,
+         color=ACCENT if built else MUTED, align=PP_ALIGN.CENTER)
+    cx += w + Inches(0.1)
 
 shape(s, MSO_SHAPE.RIGHT_ARROW, Inches(9.95), Inches(3.45), Inches(0.4), Inches(0.3), fill=ACCENT)
 text(s, Inches(9.85), Inches(3.80), Inches(0.6), Inches(0.25), "read", size=8, color=MUTED, align=PP_ALIGN.CENTER)
@@ -472,8 +483,8 @@ text(s, Inches(10.62), Inches(4.45), Inches(2.0), Inches(0.85),
      "FNOL triage · renewal note\nexplain the decision\nnever computes", size=9, color=WHITE, spacing=1.2)
 
 band(s, Inches(5.75), Inches(0.95), "The boundary",
-     "In an insurer, the agent sits outside the layer: it can draft an FNOL summary, explain a referral or a reserve movement — "
-     "but every figure it quotes came from the policy, claim and metric services, never from the model.")
+     "In an insurer, the agent sits outside the layer — it can draft an FNOL summary or explain a referral, but every figure comes from the "
+     "policy, claim and metric services. Two context signals are built (date, definition version); identity and authority are next.")
 
 # ==========================================================================
 # 7 — paired stack, not a table
