@@ -20,7 +20,7 @@ from pptx.oxml.ns import qn
 from pptx.util import Emu, Inches, Pt
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT.parent / "files" / "Insurance_Knowledge_Framework_Client.pptx"
+OUT = ROOT.parent / "files" / "Insurance_Knowledge_Framework_Deck.pptx"
 
 CARD = RGBColor(0xF4, 0xF2, 0xFB)
 ACCENT = RGBColor(0x5C, 0x10, 0xFF)
@@ -196,6 +196,44 @@ def connector(slide, x1, y1, x2, y2, color=ACCENT, width=1.5, dash=False):
 
         conn.line.dash_style = MSO_LINE_DASH_STYLE.DASH
     return conn
+
+
+def table(slide, headers, rows, x, y, w, h, ratios=None, size=10.5):
+    shape_ = slide.shapes.add_table(len(rows) + 1, len(headers), x, y, w, h)
+    tbl = shape_.table
+    if ratios:
+        total = sum(ratios)
+        for i, r in enumerate(ratios):
+            tbl.columns[i].width = Emu(int(w * r / total))
+    for j, head in enumerate(headers):
+        cell = tbl.cell(0, j)
+        cell.text = head
+        cell.fill.solid()
+        cell.fill.fore_color.rgb = CARD
+        for p_ in cell.text_frame.paragraphs:
+            for run in p_.runs:
+                run.font.size = Pt(size)
+                run.font.bold = True
+                run.font.color.rgb = INK
+                run.font.name = BODY_FONT
+        cell.margin_left = Inches(0.09)
+        cell.margin_top = Inches(0.04)
+        cell.margin_bottom = Inches(0.04)
+    for i, row in enumerate(rows, start=1):
+        for j, value in enumerate(row):
+            cell = tbl.cell(i, j)
+            cell.text = str(value)
+            cell.fill.solid()
+            cell.fill.fore_color.rgb = WHITE if i % 2 else RGBColor(0xFB, 0xFA, 0xFE)
+            for p_ in cell.text_frame.paragraphs:
+                for run in p_.runs:
+                    run.font.size = Pt(size)
+                    run.font.name = BODY_FONT
+                    run.font.bold = j == 0
+                    run.font.color.rgb = INK if j == 0 else MUTED
+            cell.margin_left = Inches(0.09)
+            cell.margin_top = Inches(0.03)
+            cell.margin_bottom = Inches(0.03)
 
 
 def notes(slide, value: str):
@@ -386,7 +424,7 @@ band(s, Inches(5.62), Inches(1.05), "What we did",
 # 6 — architecture, diagram-first
 # ==========================================================================
 s = prs.slides.add_slide(BLANK)
-frame(s, "Architecture", "Where the layer sits",
+frame(s, "Architecture", "Overall architecture",
       "Everything reads through the middle column. Nothing reads system to system.", 6)
 
 card(s, Inches(0.55), Inches(1.88), Inches(12.2), Inches(0.42), fill=WHITE, line=HAIR)
@@ -490,8 +528,8 @@ band(s, Inches(5.75), Inches(0.95), "The boundary",
 # 7 — paired stack, not a table
 # ==========================================================================
 s = prs.slides.add_slide(BLANK)
-frame(s, "Components", "Prove the model, replace the plumbing",
-      "Six components, swapped one at a time. The ontology and the evidence contract stay put.", 7)
+frame(s, "Technical components", "Prove the model",
+      "Six components, swapped one at a time. The ontology and the evidence contract stay put.", 8)
 
 pairs = [
     ("Ontology repo", "YAML in Git", "Governed catalog"),
@@ -577,6 +615,29 @@ text(s, Inches(9.95), Inches(5.28), Inches(2.8), Inches(0.3), "unit economics", 
 
 band(s, Inches(5.95), Inches(0.85), "The ask",
      "One value stream, one accountable owner, three domain stewards — and 90 days against a measured baseline.")
+
+# ==========================================================================
+# 11 — appendix: the six components, POC vs production
+# ==========================================================================
+s = prs.slides.add_slide(BLANK)
+frame(s, "Appendix  ·  the layer", "Six components — and what each becomes in production",
+      "One boundary per rate of change and owner — not one per technology.", 11)
+
+rows = [
+    ("Ontology repo", "what exists, and what the names mean", "ontology/*.yaml in Git", "governed catalog, versioned releases", "rarely, by review"),
+    ("Graph store", "what is true now — and when", "Python dicts + traversal", "Neo4j Aura", "every load"),
+    ("Metric layer", "how do we measure it", "metrics + pricing YAML", "dbt / Unity metric views", "quarterly, actuarial"),
+    ("Rules service", "what do we do about it", "rules.py + rules blocks", "rules engine + decision log", "per UW policy"),
+    ("Evidence store", "why did we decide that", "assessment + tool trace (not persisted)", "append-only table + lineage", "append-only"),
+    ("Tool surface", "who may ask, and how", "FastAPI + assistant Toolbox", "API gateway + tool server", "per consumer"),
+]
+table(s, ["Component", "The question it answers", "POC today", "Production equivalent", "Changes when"], rows,
+      Inches(0.55), Inches(1.80), Inches(12.2), Inches(3.75),
+      ratios=[2.1, 3.2, 3.3, 3.1, 2.0])
+
+band(s, Inches(5.75), Inches(0.95), "Why six",
+     "Merge two and something specific breaks: metrics inside the graph make a threshold change a data migration; "
+     "evidence inside the graph puts audit on the pricing path. At pilot scale four would work — the boundaries are drawn where they get enforced.")
 
 prs.save(OUT)
 print("saved", OUT, "slides:", len(prs.slides))
