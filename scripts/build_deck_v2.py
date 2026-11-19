@@ -127,7 +127,8 @@ def frame(s, kicker, title, sub, page):
     size = 24 if len(title) <= 56 else 21
     text(s, Inches(0.55), Inches(0.56), Inches(12.2), Inches(0.55), title, size=size, bold=True, color=INK,
          font="Aptos Display")
-    text(s, Inches(0.55), Inches(1.10), Inches(12.2), Inches(0.4), sub, size=10.5, color=MUTED)
+    if sub:
+        text(s, Inches(0.55), Inches(1.10), Inches(12.2), Inches(0.4), sub, size=10.5, color=MUTED)
     text(s, Inches(0.55), Inches(7.14), Inches(11.6), Inches(0.22), FOOT, size=8, color=MUTED)
     pill(s, Inches(12.74), Inches(7.08), Inches(0.3), Inches(0.26), str(page), size=8.5)
 
@@ -564,6 +565,114 @@ for head, name, colour, items in phases:
 band(s, Inches(5.55), Inches(1.25), "The ask to get started",
      "1 accountable business owner  ·  1 priority value stream  ·  3 domain stewards (Policy, Claims, Actuarial/UW)  ·  "
      "90 days to benchmark decision quality, cycle time, and auditability against your measured baseline.")
+
+
+# ==========================================================================
+# 11 — detailed end-to-end architecture
+# ==========================================================================
+s = prs.slides.add_slide(BLANK)
+frame(s, "Appendix  ·  detailed architecture", "End-to-end reference architecture", None, 11)
+text(s, Inches(0.55), Inches(1.03), Inches(12.2), Inches(0.26),
+     "Sources → adapters → semantic kernel → experience, with one control plane across the top and one platform underneath.",
+     size=9.5, color=MUTED)
+
+# --- control plane
+card(s, Inches(0.55), Inches(1.36), Inches(12.2), Inches(0.30), fill=WHITE, line=HAIR)
+text(s, Inches(0.70), Inches(1.41), Inches(1.6), Inches(0.22), "CONTROL PLANE", size=7.5, bold=True, color=ACCENT)
+text(s, Inches(2.15), Inches(1.41), Inches(10.4), Inches(0.22),
+     "Identity & Entra ID  ·  Metadata catalog  ·  End-to-end lineage  ·  Policy-as-code  ·  Observability  ·  FinOps",
+     size=7.5, color=MUTED)
+
+TOP = Inches(1.80)
+BOT = Inches(5.70)
+COL_H = BOT - TOP
+
+def col_head(x, w, label, colour=ACCENT):
+    text(s, x + Inches(0.12), TOP + Inches(0.06), w - Inches(0.2), Inches(0.22), label, size=8, bold=True, color=colour)
+
+def box(x, y, w, h, head, sub=None, fill=WHITE, line=HAIR, head_size=7.5, sub_size=6.8):
+    card(s, x, y, w, h, fill=fill, line=line, radius=0.08)
+    text(s, x + Inches(0.09), y + Inches(0.05), w - Inches(0.16), Inches(0.22), head, size=head_size, bold=True, color=INK)
+    if sub:
+        text(s, x + Inches(0.09), y + Inches(0.20), w - Inches(0.16), h - Inches(0.24), sub, size=sub_size, color=MUTED, spacing=1.02)
+
+# --- column 1: sources
+x1, w1 = Inches(0.55), Inches(2.15)
+card(s, x1, TOP, w1, COL_H, fill=WHITE, line=HAIR)
+col_head(x1, w1, "1 · SOURCES (ANY SYSTEM)")
+src = [("Policy Admin", "Guidewire · Duck Creek"), ("Claims system", "FNOL · reserves · payments"),
+       ("Billing ledger", "invoices · receivables"), ("UW workbench", "referrals · pricing"),
+       ("Bordereaux & docs", "PDFs · emails · notes"), ("Other domains", "ERP · CRM · telemetry")]
+yy = TOP + Inches(0.36)
+for head, sub in src:
+    box(x1 + Inches(0.10), yy, w1 - Inches(0.20), Inches(0.56), head, sub)
+    yy += Inches(0.62)
+
+# --- column 2: adapters
+x2, w2 = Inches(3.00), Inches(2.45)
+card(s, x2, TOP, w2, COL_H, fill=WHITE, line=HAIR)
+col_head(x2, w2, "2 · INGEST & ADAPTERS")
+adapter = [("Hot path", "CDC · Kafka · events"), ("Cold path", "batch files · extracts"),
+           ("Schema validation", "required, typed, keyed"), ("Entity resolution", "cross-walk · survivorship"),
+           ("Declarative mapping", "source → canonical, in YAML"), ("Bronze · Silver · Gold", "raw · conformed · marts")]
+yy = TOP + Inches(0.36)
+for head, sub in adapter:
+    box(x2 + Inches(0.10), yy, w2 - Inches(0.20), Inches(0.56), head, sub)
+    yy += Inches(0.62)
+
+# --- column 3: the kernel
+x3, w3 = Inches(5.60), Inches(4.35)
+card(s, x3, TOP, w3, COL_H, fill=CARD, line=ACCENT)
+col_head(x3, w3, "3 · SEMANTIC & CONTEXT KERNEL", ACCENT)
+kernel = [("Ontology repo", "entities · keys \n taxonomies · constraints"), ("Bi-temporal graph", "instances · dated edges"),
+          ("Metric layer", "definitions · versions"), ("Rules service", "thresholds · hard stops"),
+          ("Context gate", "as-at · version · caller · R/R/C"), ("Evidence store", "inputs · findings · decision")]
+kw = (w3 - Inches(0.36)) / 2
+for i, (head, sub) in enumerate(kernel):
+    cx = x3 + Inches(0.12) + (kw + Inches(0.12)) * (i % 2)
+    cy = TOP + Inches(0.36) + Inches(0.78) * (i // 2)
+    box(cx, cy, kw, Inches(0.70), head, sub, head_size=7.5)
+box(x3 + Inches(0.12), TOP + Inches(0.36) + Inches(0.78) * 3, w3 - Inches(0.24), Inches(0.52),
+    "Tool surface  ·  assess · history · impact  ·  read-only, versioned",
+    "the only door in — for the UI, the API and the agent", fill=SOFT, line=ACCENT)
+text(s, x3 + Inches(0.12), TOP + Inches(3.30), w3 - Inches(0.24), Inches(0.3),
+     "History lives on the edges  ·  reasoning lives in the evidence store", size=6.8, color=ACCENT)
+
+# --- column 4: experience
+x4, w4 = Inches(10.15), Inches(2.6)
+card(s, x4, TOP, w4, COL_H, fill=WHITE, line=HAIR)
+col_head(x4, w4, "4 · EXPERIENCE & AGENTS")
+exp = [("UW / claims workbench", "decision card + evidence"), ("REST · GraphQL · MCP", "governed tool contract"),
+       ("BI & regulatory packs", "reporting, audit"), ]
+yy = TOP + Inches(0.36)
+for head, sub in exp:
+    box(x4 + Inches(0.10), yy, w4 - Inches(0.20), Inches(0.56), head, sub)
+    yy += Inches(0.62)
+ai_y = yy + Inches(0.02)
+card(s, x4 + Inches(0.10), ai_y, w4 - Inches(0.20), Inches(1.05), fill=ACCENT)
+text(s, x4 + Inches(0.19), ai_y + Inches(0.06), w4 - Inches(0.36), Inches(0.2), "AI / agent runtime",
+     size=7.5, bold=True, color=WHITE)
+text(s, x4 + Inches(0.19), ai_y + Inches(0.24), w4 - Inches(0.36), Inches(0.75),
+     "outside the boundary —\ndrafts and explains,\nnever computes, never writes", size=6.8, color=WHITE, spacing=1.05)
+
+# --- arrows between columns
+for ax in (Inches(2.72), Inches(5.47), Inches(9.97)):
+    arrow = s.shapes.add_shape(MSO_SHAPE.RIGHT_ARROW, ax, Inches(3.45), Inches(0.24), Inches(0.26))
+    _strip(arrow)
+    arrow.fill.solid()
+    arrow.fill.fore_color.rgb = ACCENT
+
+# --- platform band
+card(s, Inches(0.55), Inches(5.85), Inches(12.2), Inches(0.72), fill=WHITE, line=HAIR)
+text(s, Inches(0.72), Inches(5.93), Inches(6.0), Inches(0.22), "POC TODAY", size=7.5, bold=True, color=MUTED)
+text(s, Inches(0.72), Inches(6.12), Inches(5.9), Inches(0.4),
+     "CSV book · in-memory graph · YAML ontology & metrics · Python rules · FastAPI · Streamlit",
+     size=7.5, color=MUTED, spacing=1.05)
+text(s, Inches(6.85), Inches(5.93), Inches(5.7), Inches(0.22), "PRODUCTION", size=7.5, bold=True, color=ACCENT)
+text(s, Inches(6.85), Inches(6.12), Inches(5.8), Inches(0.4),
+     "Delta lakehouse · Neo4j Aura · immutable audit DB · document store · APIM + Entra ID",
+     size=7.5, color=MUTED, spacing=1.05)
+
 
 prs.save(OUT)
 print("saved", OUT, "slides:", len(prs.slides))
